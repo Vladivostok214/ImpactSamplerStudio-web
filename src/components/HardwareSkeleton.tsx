@@ -6,7 +6,7 @@ import { PerformanceBay } from "./PerformanceBay";
 import { QWERTY_BASE_NOTE, QWERTY_NOTE_OFFSETS } from "../hooks/useQwertyKeyboard";
 
 interface HardwareSkeletonProps {
-  activeNotes: Set<number>;
+  activeNotes?: Set<number>;
   faders: number[]; // 9 values, 0-127
   knobs: number[]; // 8 values, 0-127
   pitchBend: number; // -8192 to 8191
@@ -39,7 +39,6 @@ interface HardwareSkeletonProps {
 interface KeyItem {
   note: number;
   isBlack: boolean;
-  isActive: boolean;
   isOutOfRange: boolean;
 }
 
@@ -56,7 +55,6 @@ const FADER_PAD_COLORS = [
 ];
 
 export const HardwareSkeleton: React.FC<HardwareSkeletonProps> = ({
-  activeNotes,
   faders,
   knobs,
   pitchBend,
@@ -124,27 +122,29 @@ export const HardwareSkeleton: React.FC<HardwareSkeletonProps> = ({
     return map;
   }, [qwertyEnabled, qwertyOctaveOffset, keyRange]);
 
-  // Generar las 49 teclas (C2 / nota 36 a C6 / nota 84)
-  const keys: KeyItem[] = [];
-  const startNote = 36;
-  const numKeys = 49;
+  // Generar las 49 teclas (C2 / nota 36 a C6 / nota 84) memoizadas sin re-renders de notas
+  const keys = React.useMemo(() => {
+    const list: KeyItem[] = [];
+    const startNote = 36;
+    const numKeys = 49;
 
-  for (let i = 0; i < numKeys; i++) {
-    const note = startNote + i;
-    const noteInOctave = note % 12;
-    const isBlack = [1, 3, 6, 8, 10].includes(noteInOctave);
-    const isActive = activeNotes.has(note);
-    const isOutOfRange =
-      keyRange !== undefined &&
-      (note < keyRange.minNote || note > keyRange.maxNote);
+    for (let i = 0; i < numKeys; i++) {
+      const note = startNote + i;
+      const noteInOctave = note % 12;
+      const isBlack = [1, 3, 6, 8, 10].includes(noteInOctave);
+      const isOutOfRange =
+        keyRange !== undefined &&
+        (note < keyRange.minNote || note > keyRange.maxNote);
 
-    keys.push({
-      note,
-      isBlack,
-      isActive,
-      isOutOfRange,
-    });
-  }
+      list.push({
+        note,
+        isBlack,
+        isOutOfRange,
+      });
+    }
+
+    return list;
+  }, [keyRange]);
 
   // Drag handlers para Faders
   const handleFaderPointerDown = (index: number, e: React.PointerEvent<HTMLDivElement>) => {
@@ -484,9 +484,10 @@ export const HardwareSkeleton: React.FC<HardwareSkeletonProps> = ({
             <div
               className="relative flex-1 h-44 flex overflow-x-auto overflow-y-hidden select-none bg-black"
               onMouseLeave={() => {
-                for (const k of keys) {
-                  if (k.isActive) onReleaseNote(k.note);
-                }
+                document.querySelectorAll<HTMLElement>('.piano-key-active').forEach((el) => {
+                  const note = Number(el.getAttribute('data-piano-note'));
+                  if (!isNaN(note)) onReleaseNote(note);
+                });
               }}
             >
               {keys.map((k) => {
@@ -499,6 +500,7 @@ export const HardwareSkeleton: React.FC<HardwareSkeletonProps> = ({
                   return (
                     <div
                       key={k.note}
+                      data-piano-note={k.note}
                       onMouseDown={(e) => {
                         if (k.isOutOfRange) return;
                         e.stopPropagation();
@@ -517,21 +519,15 @@ export const HardwareSkeleton: React.FC<HardwareSkeletonProps> = ({
                         if (k.isOutOfRange) return;
                         if (e.buttons === 1) onReleaseNote(k.note);
                       }}
-                      className={`w-[22px] h-[106px] -mx-[11px] z-20 rounded-b-[2px] transition-all duration-75 relative ${
+                      className={`w-[22px] h-[106px] -mx-[11px] z-20 rounded-b-[2px] relative piano-key-black ${
                         k.isOutOfRange
-                          ? "bg-zinc-950 opacity-20 cursor-not-allowed"
-                          : k.isActive
-                          ? "bg-gradient-to-b from-cyan-400 via-cyan-500 to-cyan-600 border-x border-cyan-400 border-b-[4px] border-b-cyan-700 shadow-[0_0_20px_rgba(6,182,212,0.95)] cursor-pointer"
-                          : "bg-gradient-to-b from-[#18191c] via-[#121316] to-[#08080a] border-x border-[#060608] border-b-[4px] border-b-[#020203] hover:bg-[#1f2026] cursor-pointer"
+                          ? "bg-zinc-950 opacity-20 cursor-not-allowed piano-key-out-of-range"
+                          : ""
                       }`}
                       style={{ flexShrink: 0 }}
                     >
                       {qwertyLabel && !k.isOutOfRange && (
-                        <span
-                          className={`absolute bottom-1.5 left-1/2 -translate-x-1/2 font-mono text-[9px] font-bold tracking-tight select-none pointer-events-none transition-colors ${
-                            k.isActive ? "text-cyan-950 font-black" : "text-zinc-400/90"
-                          }`}
-                        >
+                        <span className="piano-key-label absolute bottom-1.5 left-1/2 -translate-x-1/2 font-mono text-[9px] font-bold tracking-tight select-none pointer-events-none transition-colors text-zinc-400/90">
                           {qwertyLabel}
                         </span>
                       )}
@@ -542,6 +538,7 @@ export const HardwareSkeleton: React.FC<HardwareSkeletonProps> = ({
                 return (
                   <div
                     key={k.note}
+                    data-piano-note={k.note}
                     onMouseDown={() => {
                       if (k.isOutOfRange) return;
                       onTriggerNote(k.note, 100);
@@ -558,38 +555,24 @@ export const HardwareSkeleton: React.FC<HardwareSkeletonProps> = ({
                       if (k.isOutOfRange) return;
                       if (e.buttons === 1) onReleaseNote(k.note);
                     }}
-                    className={`flex-1 min-w-[20px] h-full rounded-b-[4px] transition-all duration-75 relative z-10 ${
+                    className={`flex-1 min-w-[20px] h-full rounded-b-[4px] relative z-10 piano-key-white ${
                       k.isOutOfRange
-                        ? "bg-zinc-900/60 opacity-20 cursor-not-allowed"
-                        : k.isActive
-                        ? "bg-gradient-to-b from-cyan-300 via-cyan-400 to-cyan-500 text-black border-r border-cyan-300 shadow-[0_0_18px_rgba(6,182,212,0.9)] cursor-pointer"
-                        : "bg-gradient-to-b from-[#eef1f5] via-[#fafbfc] to-[#dce2ea] border-r border-black/30 hover:brightness-105 cursor-pointer"
+                        ? "bg-zinc-900/60 opacity-20 cursor-not-allowed piano-key-out-of-range"
+                        : ""
                     }`}
                   >
                     {isCKey && (
                       <span
-                        className={`absolute left-1/2 -translate-x-1/2 font-mono font-bold tracking-tight select-none pointer-events-none transition-all ${
+                        className={`piano-key-octave absolute left-1/2 -translate-x-1/2 font-mono font-bold tracking-tight select-none pointer-events-none transition-all ${
                           qwertyLabel && !k.isOutOfRange ? "bottom-7 text-[8.5px]" : "bottom-2.5 text-[9.5px]"
-                        } ${
-                          k.isActive
-                            ? "text-black font-extrabold"
-                            : isMiddleC
-                            ? "text-cyan-700 font-extrabold"
-                            : "text-zinc-500 font-bold"
-                        }`}
+                        } ${isMiddleC ? "text-cyan-700 font-extrabold" : "text-zinc-500 font-bold"}`}
                       >
                         C{octaveNum}
                       </span>
                     )}
 
                     {qwertyLabel && !k.isOutOfRange && (
-                      <span
-                        className={`absolute bottom-2.5 left-1/2 -translate-x-1/2 font-mono text-[10px] font-bold tracking-tight select-none pointer-events-none transition-colors ${
-                          k.isActive
-                            ? "text-black font-black"
-                            : "text-zinc-600/90"
-                        }`}
-                      >
+                      <span className="piano-key-label absolute bottom-2.5 left-1/2 -translate-x-1/2 font-mono text-[10px] font-bold tracking-tight select-none pointer-events-none transition-colors text-zinc-600/90">
                         {qwertyLabel}
                       </span>
                     )}

@@ -10,6 +10,7 @@ import { useQwertyKeyboard, MIN_OCTAVE_OFFSET, MAX_OCTAVE_OFFSET } from './hooks
 import { InstrumentSelectModal, FactoryInstrumentDef } from './components/InstrumentSelectModal';
 import { SoundFontStorage } from './storage/SoundFontStorage';
 import { OrientationGuard } from './components/OrientationGuard';
+import { setVisualKeyActive, clearAllVisualKeys } from './utils/visualKeys';
 import { Activity, Upload, Music, Volume2, Loader2, Keyboard, Play, Square, Circle, Bell } from 'lucide-react';
 import '@fontsource/geist-sans';
 import '@fontsource/geist-mono';
@@ -17,7 +18,6 @@ import '@fontsource/geist-mono';
 export const App: React.FC = () => {
   const [isAudioStarted, setIsAudioStarted] = useState(false);
   const [midiDevices, setMidiDevices] = useState<string[]>([]);
-  const [activeNotes, setActiveNotes] = useState<Set<number>>(new Set());
   const [isLoadingSf2, setIsLoadingSf2] = useState(false);
 
   // Estados de Hardware (Faders, Knobs, Ruedas)
@@ -94,6 +94,7 @@ export const App: React.FC = () => {
     setIsRecording(false);
     setCurrentBeat(0);
     audioBridge.noteOffAll(false);
+    clearAllVisualKeys();
     setSequencerState((prev) => ({ ...prev, isPlaying: false, isPaused: false, currentStep: 0 }));
   };
 
@@ -117,12 +118,7 @@ export const App: React.FC = () => {
     });
 
     const unsubNotes = webMidi.onNoteEvent((note, _velocity, isNoteOn) => {
-      setActiveNotes((prev) => {
-        const next = new Set(prev);
-        if (isNoteOn) next.add(note);
-        else next.delete(note);
-        return next;
-      });
+      setVisualKeyActive(note, isNoteOn);
     });
 
     const unsubCc = webMidi.onCcEvent((controller, value) => {
@@ -503,16 +499,12 @@ export const App: React.FC = () => {
 
   const handleTriggerNote = (note: number, velocity: number) => {
     audioBridge.noteOn(note, velocity);
-    setActiveNotes((prev) => new Set(prev).add(note));
+    setVisualKeyActive(note, true);
   };
 
   const handleReleaseNote = (note: number) => {
     audioBridge.noteOff(note);
-    setActiveNotes((prev) => {
-      const next = new Set(prev);
-      next.delete(note);
-      return next;
-    });
+    setVisualKeyActive(note, false);
   };
 
   const handleQwertyNoteOn = async (note: number, velocity: number) => {
@@ -522,16 +514,12 @@ export const App: React.FC = () => {
       setIsAudioStarted(true);
     }
     audioBridge.noteOn(note, velocity);
-    setActiveNotes((prev) => new Set(prev).add(note));
+    setVisualKeyActive(note, true);
   };
 
   const handleQwertyNoteOff = (note: number) => {
     audioBridge.noteOff(note);
-    setActiveNotes((prev) => {
-      const next = new Set(prev);
-      next.delete(note);
-      return next;
-    });
+    setVisualKeyActive(note, false);
   };
 
   const { octaveOffset, setOctaveOffset } = useQwertyKeyboard({
@@ -929,7 +917,6 @@ export const App: React.FC = () => {
       <main className="flex-1 p-2 sm:py-3 sm:px-4 flex flex-col justify-center items-center relative z-10 my-auto">
         <div className="studio-console flex flex-col w-full max-w-6xl my-auto transition-all duration-200">
           <HardwareSkeleton
-            activeNotes={activeNotes}
             faders={faders}
             knobs={knobs}
             pitchBend={pitchBend}

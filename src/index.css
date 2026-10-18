@@ -73,3 +73,62 @@ html, body, #root {
   animation: tilt-to-landscape 3.5s cubic-bezier(0.4, 0, 0.2, 1) infinite;
 }
 
+/* =========================================================================
+   ILUMINACIÓN DIRECTA DE TECLAS (CERO RE-RENDERS EN REACT / LATENCIA ULTRA BAJA)
+   ========================================================================= */
+
+.piano-key-black {
+  background: linear-gradient(to bottom, #18191c, #121316, #08080a);
+  border-left: 1px solid #060608;
+  border-right: 1px solid #060608;
+  border-bottom: 4px solid #020203;
+  cursor: pointer;
+  transition: all 75ms ease;
+}
+
+.piano-key-black:hover:not(.piano-key-out-of-range) {
+  background-color: #1f2026;
+}
+
+.piano-key-black.piano-key-active {
+  background: linear-gradient(to bottom, #22d3ee, #06b6d4, #0891b2) !important;
+  border-left-color: #22d3ee !important;
+  border-right-color: #22d3ee !important;
+  border-bottom-color: #0e7490 !important;
+  box-shadow: 0 0 20px rgba(6, 182, 212, 0.95) !important;
+}
+
+.piano-key-black.piano-key-active .piano-key-label {
+  color: #083344 !important;
+  font-weight: 900 !important;
+}
+
+.piano-key-white {
+  background: linear-gradient(to bottom, #eef1f5, #fafbfc, #dce2ea);
+  border-right: 1px solid rgba(0, 0, 0, 0.3);
+  cursor: pointer;
+  transition: all 75ms ease;
+}
+
+.piano-key-white:hover:not(.piano-key-out-of-range) {
+  filter: brightness(1.05);
+}
+
+.piano-key-white.piano-key-active {
+  background: linear-gradient(to bottom, #67e8f9, #22d3ee, #06b6d4) !important;
+  color: black !important;
+  border-right-color: #67e8f9 !important;
+  box-shadow: 0 0 18px rgba(6, 182, 212, 0.9) !important;
+}
+
+.piano-key-white.piano-key-active .piano-key-label {
+  color: black !important;
+  font-weight: 900 !important;
+}
+
+.piano-key-white.piano-key-active .piano-key-octave {
+  color: black !important;
+  font-weight: 900 !important;
+}
+
+
