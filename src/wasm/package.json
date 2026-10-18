@@ -1,0 +1,15 @@
+{
+  "name": "impact_wasm",
+  "type": "module",
+  "version": "0.1.0",
+  "files": [
+    "impact_wasm_bg.wasm",
+    "impact_wasm.js",
+    "impact_wasm.d.ts"
+  ],
+  "main": "impact_wasm.js",
+  "types": "impact_wasm.d.ts",
+  "sideEffects": [
+    "./snippets/*"
+  ]
+}
