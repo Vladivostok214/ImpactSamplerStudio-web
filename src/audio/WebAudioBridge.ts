@@ -7,7 +7,9 @@ export class WebAudioBridge {
   private engine: WasmEngine | null = null;
   private scriptNode: ScriptProcessorNode | null = null;
   private isInitialized = false;
+  private initializationPromise: Promise<void> | null = null;
   private currentSoundFontName: string = 'Ninguno';
+  private hasLoggedProcessError = false;
 
   private constructor() {}
 
@@ -20,28 +22,57 @@ export class WebAudioBridge {
 
   public async initialize(): Promise<void> {
     if (this.isInitialized) return;
+    if (this.initializationPromise) {
+      return this.initializationPromise;
+    }
 
-    // Inicializar WebAudio AudioContext
-    const AudioContextClass = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-    this.ctx = new AudioContextClass({ latencyHint: 'interactive' });
+    this.initializationPromise = (async () => {
+      try {
+        // Inicializar WebAudio AudioContext
+        const AudioContextClass = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+        this.ctx = new AudioContextClass({ latencyHint: 'interactive' });
 
-    // Inicializar módulo WebAssembly
-    await initWasm();
+        // Inicializar módulo WebAssembly (Singleton)
+        await initWasm();
 
-    // Crear instancia del motor de audio en Rust
-    this.engine = new WasmEngine(this.ctx.sampleRate);
+        // Crear instancia del motor de audio en Rust
+        this.engine = new WasmEngine(this.ctx.sampleRate);
 
-    // Conectar el nodo de procesamiento de audio en tiempo real (buffer de 512 muestras ~10ms)
-    this.scriptNode = this.ctx.createScriptProcessor(512, 0, 2);
-    this.scriptNode.onaudioprocess = (e) => {
-      if (!this.engine) return;
-      const left = e.outputBuffer.getChannelData(0);
-      const right = e.outputBuffer.getChannelData(1);
-      this.engine.render(left, right);
-    };
+        // Conectar el nodo de procesamiento de audio en tiempo real (buffer de 512 muestras ~10ms)
+        this.scriptNode = this.ctx.createScriptProcessor(512, 0, 2);
+        this.scriptNode.onaudioprocess = (e) => {
+          const left = e.outputBuffer.getChannelData(0);
+          const right = e.outputBuffer.getChannelData(1);
 
-    this.scriptNode.connect(this.ctx.destination);
-    this.isInitialized = true;
+          // Si el motor no está instanciado o no hay SoundFont cargado, emitir silencio limpio
+          if (!this.engine || !this.currentSoundFontName || this.currentSoundFontName === 'Ninguno') {
+            left.fill(0);
+            right.fill(0);
+            return;
+          }
+
+          try {
+            this.engine.render(left, right);
+          } catch (err) {
+            left.fill(0);
+            right.fill(0);
+            if (!this.hasLoggedProcessError) {
+              console.error('Error no fatal en render de WebAssembly:', err);
+              this.hasLoggedProcessError = true;
+            }
+          }
+        };
+
+        this.scriptNode.connect(this.ctx.destination);
+        this.isInitialized = true;
+      } catch (err) {
+        this.initializationPromise = null;
+        this.isInitialized = false;
+        throw err;
+      }
+    })();
+
+    return this.initializationPromise;
   }
 
   public async resumeAudio(): Promise<void> {
@@ -57,16 +88,17 @@ export class WebAudioBridge {
     const bytes = new Uint8Array(buffer);
     this.engine.load_soundfont(bytes);
     this.currentSoundFontName = name;
+    this.hasLoggedProcessError = false;
   }
 
   public noteOn(key: number, velocity: number = 127, channel: number = 0): void {
-    if (!this.engine) return;
+    if (!this.engine || !this.currentSoundFontName || this.currentSoundFontName === 'Ninguno') return;
     this.resumeAudio();
     this.engine.note_on(channel, key, velocity);
   }
 
   public noteOff(key: number, channel: number = 0): void {
-    if (!this.engine) return;
+    if (!this.engine || !this.currentSoundFontName || this.currentSoundFontName === 'Ninguno') return;
     this.engine.note_off(channel, key);
   }
 

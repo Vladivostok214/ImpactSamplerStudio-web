@@ -498,6 +498,10 @@ export const App: React.FC = () => {
   };
 
   const handleTriggerNote = (note: number, velocity: number) => {
+    if (!currentSoundfont) {
+      setIsInstrumentModalOpen(true);
+      return;
+    }
     audioBridge.noteOn(note, velocity);
     setVisualKeyActive(note, true);
   };
@@ -508,9 +512,15 @@ export const App: React.FC = () => {
   };
 
   const handleQwertyNoteOn = async (note: number, velocity: number) => {
+    if (!currentSoundfont) {
+      setIsInstrumentModalOpen(true);
+      return;
+    }
+
     if (!isAudioStarted) {
       await audioBridge.initialize();
       await audioBridge.resumeAudio();
+      audioBridge.syncArpState(arpState, bpm);
       setIsAudioStarted(true);
     }
     audioBridge.noteOn(note, velocity);

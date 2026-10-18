@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 
 export const QWERTY_BASE_NOTE = 60; // C4 (Middle C)
-export const QWERTY_VELOCITY = 110;
+export const QWERTY_VELOCITY = 85;
 export const MIN_OCTAVE_OFFSET = -2; // C2 (36)
 export const MAX_OCTAVE_OFFSET = 2; // C6 (84)
 
@@ -173,7 +173,7 @@ export function useQwertyKeyboard({
       if (e.code in QWERTY_PAD_NOTES) {
         const padNote = QWERTY_PAD_NOTES[e.code];
         activeKeysRef.current.set(e.code, { type: 'pad', note: padNote });
-        callbacksRef.current.onNoteOn(padNote, 120);
+        callbacksRef.current.onNoteOn(padNote, 100);
         e.preventDefault();
         return;
       }
