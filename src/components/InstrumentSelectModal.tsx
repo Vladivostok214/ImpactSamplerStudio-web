@@ -312,6 +312,21 @@ export const InstrumentSelectModal: React.FC<InstrumentSelectModalProps> = ({
                           <span>Descargar ({inst.fileSizeMb} MB)</span>
                         </button>
                       )}
+
+                      {!isSelected && !isSaved && !isDownloading && (
+                        <div className="flex justify-end mt-1.5">
+                          <a
+                            href={inst.downloadUrl}
+                            download={inst.filename}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-[9.5px] font-mono text-zinc-500 hover:text-cyan-400 transition underline underline-offset-2"
+                            title="Descargar archivo .sf2 directamente a tu disco para importarlo manualmente"
+                          >
+                            Descarga directa .sf2
+                          </a>
+                        </div>
+                      )}
                     </div>
                   </div>
                 );

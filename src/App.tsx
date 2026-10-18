@@ -372,7 +372,19 @@ export const App: React.FC = () => {
       setDownloadingId(instrument.id);
       setDownloadProgress((prev) => ({ ...prev, [instrument.id]: 0 }));
 
-      const response = await fetch(instrument.downloadUrl);
+      // Usar endpoint proxy /api/download para evitar bloqueo CORS de GitHub Releases
+      const proxyUrl = `/api/download?url=${encodeURIComponent(instrument.downloadUrl)}`;
+      let response: Response;
+      try {
+        response = await fetch(proxyUrl);
+        if (!response.ok) {
+          throw new Error(`Proxy status: ${response.status}`);
+        }
+      } catch {
+        // Fallback directo si no está disponible el proxy
+        response = await fetch(instrument.downloadUrl);
+      }
+
       if (!response.ok) {
         throw new Error(`Error HTTP: ${response.status} ${response.statusText}`);
       }
