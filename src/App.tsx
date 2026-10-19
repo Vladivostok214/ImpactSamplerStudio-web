@@ -13,7 +13,7 @@ import { OrientationGuard } from './components/OrientationGuard';
 import { StudioAssistantAvatar } from './components/StudioAssistantAvatar';
 import { setVisualKeyActive, clearAllVisualKeys } from './utils/visualKeys';
 import { parseSf2Presets } from './utils/sf2Parser';
-import { Activity, Upload, Music, Volume2, Loader2, Keyboard, Play, Square, Circle, Bell } from 'lucide-react';
+import { Upload, Music, Volume2, Loader2, Keyboard, Play, Square, Circle, Bell } from 'lucide-react';
 import '@fontsource/geist-sans';
 import '@fontsource/geist-mono';
 
@@ -919,14 +919,21 @@ export const App: React.FC = () => {
       {/* Header Unificado Noir-Tech */}
       <header className="relative z-20 border-b border-white/10 bg-[#08090d]/80 backdrop-blur-md px-4 sm:px-6 py-2.5 flex items-center justify-between gap-4 safe-horizontal">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-emerald-500/30 to-cyan-500/10 border border-emerald-500/40 flex items-center justify-center shadow-[0_0_15px_rgba(16,185,129,0.25)]">
-            <Activity className="w-4 h-4 text-emerald-400" />
-          </div>
-          <div>
-            <h1 className="text-xs sm:text-sm font-bold tracking-wider uppercase text-white flex items-center gap-1.5">
-              IMPACTSAMPPLER <span className="text-slate-500 font-medium">STUDIO</span>
+          <button
+            type="button"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => setIsInstrumentModalOpen(true)}
+            className="text-sm font-black tracking-widest text-white flex items-center select-none hover:opacity-90 transition cursor-pointer group focus:outline-none shrink-0"
+            style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif' }}
+            title="Seleccionar Instrumento"
+          >
+            <div className="w-7 h-7 rounded-lg overflow-hidden mr-2.5 border border-emerald-500/40 shadow-[0_0_12px_rgba(16,185,129,0.35)] flex items-center justify-center bg-black/60 shrink-0 group-hover:border-emerald-400 group-hover:shadow-[0_0_16px_rgba(16,185,129,0.6)] transition">
+              <img src="/app-icon.png" alt="Impact Sampler" className="w-full h-full object-contain" />
+            </div>
+            <h1>
+              IMPACT<span className="text-emerald-400 group-hover:drop-shadow-[0_0_10px_rgba(16,185,129,0.7)] transition-all">SAMPLER</span>
             </h1>
-          </div>
+          </button>
         </div>
 
         {/* Selector de SoundFont / Catálogo Fotográfico (Bloque 5) */}
