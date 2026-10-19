@@ -10,6 +10,7 @@ import { useQwertyKeyboard, MIN_OCTAVE_OFFSET, MAX_OCTAVE_OFFSET } from './hooks
 import { InstrumentSelectModal, FactoryInstrumentDef, FACTORY_INSTRUMENTS } from './components/InstrumentSelectModal';
 import { SoundFontStorage } from './storage/SoundFontStorage';
 import { OrientationGuard } from './components/OrientationGuard';
+import { StudioAssistantAvatar } from './components/StudioAssistantAvatar';
 import { setVisualKeyActive, clearAllVisualKeys } from './utils/visualKeys';
 import { parseSf2Presets } from './utils/sf2Parser';
 import { Activity, Upload, Music, Volume2, Loader2, Keyboard, Play, Square, Circle, Bell } from 'lucide-react';
@@ -1196,6 +1197,14 @@ export const App: React.FC = () => {
           </span>
         </div>
       </footer>
+
+      {/* Asistente Flotante con Ojos Vivos y Base de Datos FAQ */}
+      <StudioAssistantAvatar
+        onOpenSequencer={() => handleChangeWorkstationMode('seq')}
+        onOpenKeys={() => handleChangeWorkstationMode('keys')}
+        onOpenInstruments={() => setIsInstrumentModalOpen(true)}
+        onToggleMetronome={handleToggleMetronome}
+      />
 
       {/* Modal de Catálogo Fotográfico de Instrumentos (Bloque 5) */}
       <InstrumentSelectModal
