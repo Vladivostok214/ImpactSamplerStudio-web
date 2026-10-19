@@ -4,6 +4,7 @@ import { SoundFontInfo } from "../types/soundfont";
 import { ArpStateInfo } from "../types/arpeggiator";
 import { PerformanceBay } from "./PerformanceBay";
 import { QWERTY_BASE_NOTE, QWERTY_NOTE_OFFSETS } from "../hooks/useQwertyKeyboard";
+import { MidiLearnTarget, MidiLearnMapping } from "../types/midiLearn";
 
 interface HardwareSkeletonProps {
   activeNotes?: Set<number>;
@@ -19,6 +20,10 @@ interface HardwareSkeletonProps {
   onChangeFxRouting?: (routing: FxRouting) => void;
   arpState?: ArpStateInfo;
   onChangeArpState?: (state: ArpStateInfo) => void;
+  isMidiLearnActive?: boolean;
+  selectedLearnTarget?: MidiLearnTarget | null;
+  onSelectLearnTarget?: (target: MidiLearnTarget) => void;
+  midiLearnMapping?: MidiLearnMapping;
   availableSoundfonts?: SoundFontInfo[];
   currentSoundfont?: SoundFontInfo | null;
   activePresetIndex?: number;
@@ -66,6 +71,10 @@ export const HardwareSkeleton: React.FC<HardwareSkeletonProps> = ({
   onChangeFxRouting,
   arpState,
   onChangeArpState,
+  isMidiLearnActive = false,
+  selectedLearnTarget = null,
+  onSelectLearnTarget,
+  midiLearnMapping,
   availableSoundfonts = [],
   currentSoundfont,
   activePresetIndex = 0,
@@ -320,20 +329,46 @@ export const HardwareSkeleton: React.FC<HardwareSkeletonProps> = ({
               const padSample = idx < 8 ? padSlots[idx]?.sampleName : null;
               const colorTheme = FADER_PAD_COLORS[idx] || FADER_PAD_COLORS[0];
 
+              const isTargetSelected =
+                isMidiLearnActive &&
+                selectedLearnTarget?.type === "fader" &&
+                selectedLearnTarget?.index === idx;
+              const mappedCc = midiLearnMapping?.faders[idx] ?? (isMaster ? 46 : 38 + idx);
+
+              const handleFaderContainerClick = (e: React.MouseEvent) => {
+                if (isMidiLearnActive) {
+                  e.stopPropagation();
+                  onSelectLearnTarget?.({ type: "fader", index: idx });
+                }
+              };
+
               return (
                 <div
                   key={idx}
-                  onDoubleClick={() => onChangeFader(idx, isMaster ? 100 : 64)}
+                  onClick={handleFaderContainerClick}
+                  onDoubleClick={() => !isMidiLearnActive && onChangeFader(idx, isMaster ? 100 : 64)}
                   className="flex-1 flex flex-col items-center cursor-pointer transition-all rounded-lg p-0.5"
                 >
                   <div
-                    onPointerDown={(e) => handleFaderPointerDown(idx, e)}
+                    onPointerDown={(e) => {
+                      if (!isMidiLearnActive) handleFaderPointerDown(idx, e);
+                    }}
                     className={`w-full h-28 bg-[#08080a] rounded-lg relative flex items-center justify-center p-0.5 cursor-ns-resize transition shadow-[inset_0_2px_6px_rgba(0,0,0,0.9)] overflow-hidden group/fader ${
-                      isMaster
+                      isTargetSelected
+                        ? "border-2 border-amber-400 shadow-[0_0_18px_rgba(245,158,11,0.9)] ring-2 ring-amber-400/50 animate-pulse"
+                        : isMidiLearnActive
+                        ? "border-2 border-amber-500/60 shadow-[0_0_12px_rgba(245,158,11,0.35)] hover:border-amber-400 hover:shadow-[0_0_16px_rgba(245,158,11,0.6)]"
+                        : isMaster
                         ? "border-2 border-cyan-400/90 shadow-[0_0_12px_rgba(34,211,238,0.35),inset_0_2px_6px_rgba(0,0,0,0.9)] hover:border-cyan-300"
                         : "border border-white/[0.08] hover:border-white/20"
                     }`}
-                    title={isMaster ? `Master: ${val}` : `Pad ${idx + 1}${padSample ? ` (${padSample})` : ""}: ${val}`}
+                    title={
+                      isMidiLearnActive
+                        ? `MIDI Learn: Fader ${idx + 1} (CC ${mappedCc})`
+                        : isMaster
+                        ? `Master: ${val}`
+                        : `Pad ${idx + 1}${padSample ? ` (${padSample})` : ""}: ${val}`
+                    }
                   >
                     <div className="absolute left-1/2 -translate-x-1/2 w-[3px] h-[calc(100%-8px)] bg-black rounded-full border border-white/[0.06] shadow-inner" />
                     <div
@@ -349,7 +384,7 @@ export const HardwareSkeleton: React.FC<HardwareSkeletonProps> = ({
                       <div className={`w-[75%] h-[2px] rounded-full ${isMaster ? "bg-cyan-400 shadow-[0_0_6px_#22d3ee]" : colorTheme.line}`} />
                     </div>
                   </div>
-                  <span className={`text-[9.5px] font-mono mt-1.5 tabular-nums ${isMaster ? "text-cyan-300 font-bold" : "text-zinc-300 font-medium"}`}>
+                  <span className={`text-[9.5px] font-mono mt-1.5 tabular-nums ${isTargetSelected ? "text-amber-300 font-bold" : isMaster ? "text-cyan-300 font-bold" : "text-zinc-300 font-medium"}`}>
                     {val}
                   </span>
                 </div>
@@ -419,14 +454,41 @@ export const HardwareSkeleton: React.FC<HardwareSkeletonProps> = ({
               const activeDash = (val / 127) * arcLength;
               const isFxBypassed = fxRouting === "off";
 
+              const isKnobTargetSelected =
+                isMidiLearnActive &&
+                selectedLearnTarget?.type === "knob" &&
+                selectedLearnTarget?.index === idx;
+              const mappedKnobCc = midiLearnMapping?.knobs[idx] ?? (56 + idx);
+
+              const handleKnobContainerClick = (e: React.MouseEvent) => {
+                if (isMidiLearnActive) {
+                  e.stopPropagation();
+                  onSelectLearnTarget?.({ type: "knob", index: idx });
+                }
+              };
+
               return (
                 <div
                   key={idx}
-                  onDoubleClick={() => onChangeKnob(idx, [0, 1, 7].includes(idx) ? 64 : 0)}
-                  className="relative flex flex-col items-center cursor-pointer group py-1 px-1 rounded-lg transition-all hover:bg-white/[0.03]"
+                  onClick={handleKnobContainerClick}
+                  onDoubleClick={() => !isMidiLearnActive && onChangeKnob(idx, [0, 1, 7].includes(idx) ? 64 : 0)}
+                  className={`relative flex flex-col items-center cursor-pointer group py-1 px-1 rounded-lg transition-all ${
+                    isKnobTargetSelected
+                      ? "border-2 border-amber-400 bg-amber-500/20 shadow-[0_0_18px_rgba(245,158,11,0.85)] ring-2 ring-amber-400/50 animate-pulse"
+                      : isMidiLearnActive
+                      ? "border border-amber-500/50 bg-amber-950/20 shadow-[0_0_10px_rgba(245,158,11,0.3)] hover:border-amber-400 hover:shadow-[0_0_14px_rgba(245,158,11,0.55)]"
+                      : "border border-transparent hover:bg-white/[0.03]"
+                  }`}
+                  title={
+                    isMidiLearnActive
+                      ? `MIDI Learn: Knob ${idx + 1} (${activeLabel}) -> CC ${mappedKnobCc}`
+                      : `${activeLabel}: ${val}`
+                  }
                 >
                   <div
-                    onPointerDown={(e) => handleKnobPointerDown(idx, e)}
+                    onPointerDown={(e) => {
+                      if (!isMidiLearnActive) handleKnobPointerDown(idx, e);
+                    }}
                     className="relative w-9 h-9 flex items-center justify-center cursor-ns-resize mt-0.5"
                   >
                     <svg className="w-9 h-9 rotate-[135deg] pointer-events-none" viewBox="0 0 36 36">
@@ -436,7 +498,7 @@ export const HardwareSkeleton: React.FC<HardwareSkeletonProps> = ({
                         cy="18"
                         r="14"
                         fill="none"
-                        stroke={isFxBypassed ? "#3f3f46" : "#f59e0b"}
+                        stroke={isFxBypassed ? "#3f3f46" : isKnobTargetSelected ? "#fbbf24" : "#f59e0b"}
                         strokeWidth="2.5"
                         strokeDasharray={`${activeDash} ${circ}`}
                         strokeLinecap="round"
@@ -452,10 +514,10 @@ export const HardwareSkeleton: React.FC<HardwareSkeletonProps> = ({
                       />
                     </div>
                   </div>
-                  <span className={`text-[9.5px] font-mono font-bold mt-1.5 truncate max-w-[58px] text-center leading-tight tracking-wider ${isFxBypassed ? "text-zinc-500" : "text-amber-300"}`}>
+                  <span className={`text-[9.5px] font-mono font-bold mt-1.5 truncate max-w-[58px] text-center leading-tight tracking-wider ${isKnobTargetSelected ? "text-amber-200" : isFxBypassed ? "text-zinc-500" : "text-amber-300"}`}>
                     {activeLabel}
                   </span>
-                  <span className={`text-[9.5px] font-mono mt-0.5 font-medium tabular-nums ${isFxBypassed ? "text-zinc-600" : "text-zinc-300"}`}>
+                  <span className={`text-[9.5px] font-mono mt-0.5 font-medium tabular-nums ${isKnobTargetSelected ? "text-amber-300 font-bold" : isFxBypassed ? "text-zinc-600" : "text-zinc-300"}`}>
                     {val}
                   </span>
                 </div>
@@ -471,6 +533,10 @@ export const HardwareSkeleton: React.FC<HardwareSkeletonProps> = ({
             onChangeFxRouting={onChangeFxRouting}
             arpState={arpState}
             onChangeArpState={onChangeArpState}
+            isMidiLearnActive={isMidiLearnActive}
+            selectedLearnTarget={selectedLearnTarget}
+            onSelectLearnTarget={onSelectLearnTarget}
+            midiLearnMapping={midiLearnMapping}
           />
         </div>
       </div>

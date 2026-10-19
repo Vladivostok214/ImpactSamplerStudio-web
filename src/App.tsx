@@ -13,7 +13,17 @@ import { OrientationGuard } from './components/OrientationGuard';
 import { StudioAssistantAvatar } from './components/StudioAssistantAvatar';
 import { setVisualKeyActive, clearAllVisualKeys } from './utils/visualKeys';
 import { parseSf2Presets } from './utils/sf2Parser';
-import { Upload, Music, Volume2, Loader2, Keyboard, Play, Square, Circle, Bell } from 'lucide-react';
+import {
+  MidiLearnTarget,
+  MidiLearnMapping,
+  UIActionId,
+  loadSavedMidiMapping,
+  saveMidiMapping,
+  resetSavedMidiMapping,
+  getMidiNoteName,
+  ACTION_LABELS,
+} from './types/midiLearn';
+import { Upload, Music, Volume2, Loader2, Keyboard, Play, Square, Circle, Bell, Sliders } from 'lucide-react';
 import '@fontsource/geist-sans';
 import '@fontsource/geist-mono';
 
@@ -128,6 +138,39 @@ export const App: React.FC = () => {
   const [bootProgress, setBootProgress] = useState<number | null>(null);
   const lastMelodicSoundfontRef = useRef<SoundFontInfo | null>(null);
 
+  // Estados de MIDI Learn y Mapeo Dinámico
+  const [isMidiLearnActive, setIsMidiLearnActive] = useState<boolean>(false);
+  const [selectedLearnTarget, setSelectedLearnTarget] = useState<MidiLearnTarget | null>(null);
+  const [midiLearnMapping, setMidiLearnMapping] = useState<MidiLearnMapping>(loadSavedMidiMapping);
+  const [lastLearnedInfo, setLastLearnedInfo] = useState<{ label: string; detail: string } | null>(null);
+  const [activePads, setActivePads] = useState<Set<number>>(new Set());
+
+  const learnStateRef = useRef({
+    isActive: isMidiLearnActive,
+    target: selectedLearnTarget,
+    mapping: midiLearnMapping,
+  });
+
+  useEffect(() => {
+    learnStateRef.current = {
+      isActive: isMidiLearnActive,
+      target: selectedLearnTarget,
+      mapping: midiLearnMapping,
+    };
+  }, [isMidiLearnActive, selectedLearnTarget, midiLearnMapping]);
+
+  useEffect(() => {
+    if (lastLearnedInfo) {
+      const timer = setTimeout(() => setLastLearnedInfo(null), 3500);
+      return () => clearTimeout(timer);
+    }
+  }, [lastLearnedInfo]);
+
+  const actionHandlersRef = useRef<{ [key: string]: () => void }>({});
+  const triggerUIAction = (id: UIActionId) => {
+    actionHandlersRef.current[id]?.();
+  };
+
   const handleTogglePlay = async () => {
     if (!isAudioStarted) {
       await audioBridge.initialize();
@@ -198,6 +241,17 @@ export const App: React.FC = () => {
   transportHandlersRef.current = { handleTogglePlay, handleStop, handleToggleRecord, handleToggleMetronome, handleChangeBpm: (delta: number) => handleChangeBpm(delta) };
 
   useEffect(() => {
+    // Interceptar notas si estamos aprendiendo un Pad o Acción para evitar que suenen
+    webMidi.shouldInterceptNote = (_note: number, _vel: number) => {
+      const { isActive, target } = learnStateRef.current;
+      if (isActive && target) {
+        if (target.type === 'pad' || target.type === 'action') {
+          return true;
+        }
+      }
+      return false;
+    };
+
     // 1. Inicializar Web MIDI API
     webMidi.requestAccess();
 
@@ -205,55 +259,209 @@ export const App: React.FC = () => {
       setMidiDevices(devices);
     });
 
-    const unsubNotes = webMidi.onNoteEvent((note, _velocity, isNoteOn) => {
-      setVisualKeyActive(note, isNoteOn);
+    const unsubNotes = webMidi.onNoteEvent((note, velocity, isNoteOn) => {
+      const { isActive, target, mapping } = learnStateRef.current;
+
+      // --- MODO MIDI LEARN: CAPTURA ACTIVA DE MENSAJE NOTA ---
+      if (isActive && target) {
+        if (isNoteOn && velocity > 0) {
+          if (target.type === 'pad') {
+            const idx = target.index;
+            setMidiLearnMapping((prev) => {
+              const next = { ...prev, pads: { ...prev.pads, [idx]: note } };
+              saveMidiMapping(next);
+              return next;
+            });
+            setLastLearnedInfo({
+              label: `Pad ${idx + 1}`,
+              detail: `Asignado a Nota ${getMidiNoteName(note)} (#${note})`,
+            });
+            setSelectedLearnTarget(null);
+            return;
+          }
+
+          if (target.type === 'action') {
+            const actionId = target.id;
+            setMidiLearnMapping((prev) => {
+              const nextActions = { ...(prev.actions || {}) };
+              for (const [k, v] of Object.entries(nextActions)) {
+                if (v && v.messageType === 'note' && v.number === note) {
+                  delete nextActions[k];
+                }
+              }
+              nextActions[actionId] = { messageType: 'note', number: note };
+              const next = { ...prev, actions: nextActions };
+              saveMidiMapping(next);
+              return next;
+            });
+            setLastLearnedInfo({
+              label: ACTION_LABELS[actionId] || actionId,
+              detail: `Asignado a Nota ${getMidiNoteName(note)} (#${note})`,
+            });
+            setSelectedLearnTarget(null);
+            return;
+          }
+        }
+        return;
+      }
+
+      // --- OPERACIÓN MUSICAL NORMAL ---
+      if (isNoteOn && velocity > 0) {
+        // 1. Verificar si la nota dispara alguna acción UI mapeada
+        for (const [actId, binding] of Object.entries(mapping.actions || {})) {
+          if (binding && binding.messageType === 'note' && binding.number === note) {
+            triggerUIAction(actId as UIActionId);
+            return;
+          }
+        }
+
+        // 2. Iluminación visual de teclas de piano
+        setVisualKeyActive(note, true);
+
+        // 3. Iluminación y disparo de Pad si coincide con mapping.pads
+        for (let pIdx = 0; pIdx < 8; pIdx++) {
+          if (mapping.pads[pIdx] === note) {
+            setActivePads((prev) => new Set([...prev, pIdx + 1]));
+            break;
+          }
+        }
+      } else {
+        // Note Off
+        setVisualKeyActive(note, false);
+
+        for (let pIdx = 0; pIdx < 8; pIdx++) {
+          if (mapping.pads[pIdx] === note) {
+            setActivePads((prev) => {
+              const next = new Set(prev);
+              next.delete(pIdx + 1);
+              return next;
+            });
+            break;
+          }
+        }
+      }
     });
 
     const unsubCc = webMidi.onCcEvent((controller, value) => {
-      // Mapeo Nektar LX49+ Preset Estándar: Faders (CC 71-78 o CC 38-45)
-      if (controller >= 71 && controller <= 78) {
-        const idx = controller - 71;
-        setFaders((prev) => {
-          const next = [...prev];
-          next[idx] = value;
-          return next;
-        });
-      } else if (controller >= 38 && controller <= 45) {
-        const idx = controller - 38;
-        setFaders((prev) => {
-          const next = [...prev];
-          next[idx] = value;
-          return next;
-        });
-      } else if (controller === 79 || controller === 46) {
-        // Master Fader (F9)
-        setFaders((prev) => {
-          const next = [...prev];
-          next[8] = value;
-          return next;
-        });
-        audioBridge.setMasterFader(value);
+      const { isActive, target, mapping } = learnStateRef.current;
+
+      // --- MODO MIDI LEARN: CAPTURA ACTIVA DE CONTROL CHANGE ---
+      if (isActive && target) {
+        if (target.type === 'fader') {
+          const idx = target.index;
+          setMidiLearnMapping((prev) => {
+            const next = { ...prev, faders: { ...prev.faders, [idx]: controller } };
+            saveMidiMapping(next);
+            return next;
+          });
+          setLastLearnedInfo({
+            label: idx === 8 ? 'Master Volume (F9)' : `Fader ${idx + 1}`,
+            detail: `Asignado a CC ${controller}`,
+          });
+          setSelectedLearnTarget(null);
+          return;
+        }
+
+        if (target.type === 'knob') {
+          const idx = target.index;
+          setMidiLearnMapping((prev) => {
+            const next = { ...prev, knobs: { ...prev.knobs, [idx]: controller } };
+            saveMidiMapping(next);
+            return next;
+          });
+          setLastLearnedInfo({
+            label: `Knob ${idx + 1}`,
+            detail: `Asignado a CC ${controller}`,
+          });
+          setSelectedLearnTarget(null);
+          return;
+        }
+
+        if (target.type === 'action') {
+          const actionId = target.id;
+          setMidiLearnMapping((prev) => {
+            const nextActions = { ...(prev.actions || {}) };
+            for (const [k, v] of Object.entries(nextActions)) {
+              if (v && v.messageType === 'cc' && v.number === controller) {
+                delete nextActions[k];
+              }
+            }
+            nextActions[actionId] = { messageType: 'cc', number: controller };
+            const next = { ...prev, actions: nextActions };
+            saveMidiMapping(next);
+            return next;
+          });
+          setLastLearnedInfo({
+            label: ACTION_LABELS[actionId] || actionId,
+            detail: `Asignado a CC ${controller}`,
+          });
+          setSelectedLearnTarget(null);
+          return;
+        }
       }
-      // Knobs (CC 21-28 o CC 56-63)
-      else if (controller >= 21 && controller <= 28) {
-        const idx = controller - 21;
+
+      // --- OPERACIÓN MUSICAL NORMAL ---
+      // 1. Acciones mapeadas por CC
+      if (value > 0) {
+        for (const [actId, binding] of Object.entries(mapping.actions || {})) {
+          if (binding && binding.messageType === 'cc' && binding.number === controller) {
+            triggerUIAction(actId as UIActionId);
+            return;
+          }
+        }
+      }
+
+      // 2. Mapeo dinámico de Faders (F1 a F9)
+      let matchedFaderIdx: number | null = null;
+      for (let fIdx = 0; fIdx < 9; fIdx++) {
+        if (mapping.faders[fIdx] === controller) {
+          matchedFaderIdx = fIdx;
+          break;
+        }
+      }
+      // Fallback estándar LX49+ si no está mapeado
+      if (matchedFaderIdx === null) {
+        if (controller >= 71 && controller <= 78) matchedFaderIdx = controller - 71;
+        else if (controller >= 38 && controller <= 45) matchedFaderIdx = controller - 38;
+        else if (controller === 79 || controller === 46) matchedFaderIdx = 8;
+      }
+      if (matchedFaderIdx !== null) {
+        setFaders((prev) => {
+          const next = [...prev];
+          next[matchedFaderIdx!] = value;
+          return next;
+        });
+        if (matchedFaderIdx === 8) {
+          audioBridge.setMasterFader(value);
+        }
+        return;
+      }
+
+      // 3. Mapeo dinámico de Knobs (K1 a K8)
+      let matchedKnobIdx: number | null = null;
+      for (let kIdx = 0; kIdx < 8; kIdx++) {
+        if (mapping.knobs[kIdx] === controller) {
+          matchedKnobIdx = kIdx;
+          break;
+        }
+      }
+      // Fallback estándar LX49+
+      if (matchedKnobIdx === null) {
+        if (controller >= 21 && controller <= 28) matchedKnobIdx = controller - 21;
+        else if (controller >= 56 && controller <= 63) matchedKnobIdx = controller - 56;
+      }
+      if (matchedKnobIdx !== null) {
         setKnobs((prev) => {
           const next = [...prev];
-          next[idx] = value;
+          next[matchedKnobIdx!] = value;
           return next;
         });
-        audioBridge.setKnob(idx, value);
-      } else if (controller >= 56 && controller <= 63) {
-        const idx = controller - 56;
-        setKnobs((prev) => {
-          const next = [...prev];
-          next[idx] = value;
-          return next;
-        });
-        audioBridge.setKnob(idx, value);
+        audioBridge.setKnob(matchedKnobIdx, value);
+        return;
       }
-      // Mod Wheel (CC 1)
-      else if (controller === 1) {
+
+      // 4. Modulation Wheel (CC 1)
+      if (controller === 1) {
         setModWheel(value);
         audioBridge.setModWheel(value);
       }
@@ -281,6 +489,7 @@ export const App: React.FC = () => {
     });
 
     return () => {
+      webMidi.shouldInterceptNote = null;
       unsubDevices();
       unsubNotes();
       unsubCc();
@@ -831,8 +1040,16 @@ export const App: React.FC = () => {
 
   const handleSequencerTriggerPad = (padIdx: number) => {
     const drumNotes = [36, 38, 42, 46, 41, 45, 49, 51];
-    const note = drumNotes[padIdx] || 36;
-    handleTriggerNote(note, 120);
+    const note = midiLearnMapping.pads[padIdx] ?? drumNotes[padIdx] ?? 36;
+    setActivePads((prev) => new Set([...prev, padIdx + 1]));
+    setTimeout(() => {
+      setActivePads((prev) => {
+        const next = new Set(prev);
+        next.delete(padIdx + 1);
+        return next;
+      });
+    }, 120);
+    handleTriggerNote(note, 127);
     setTimeout(() => handleReleaseNote(note), 120);
   };
 
@@ -856,6 +1073,33 @@ export const App: React.FC = () => {
       }
     }
   };
+
+  useEffect(() => {
+    actionHandlersRef.current = {
+      play: handleTogglePlay,
+      stop: handleStop,
+      record: handleToggleRecord,
+      click: handleToggleMetronome,
+      visualMetronome: () => {},
+      tapTempo: handleTapTempo,
+      bpmDown: () => handleChangeBpm(-1),
+      bpmUp: () => handleChangeBpm(1),
+      bank: handleSequencerToggleBank,
+      grid: () => {
+        const nextRes = sequencerState.resolution === 'eighth' ? 'sixteenth' : sequencerState.resolution === 'sixteenth' ? 'thirtySecond' : 'eighth';
+        handleSequencerChangeResolution(nextRes);
+      },
+      page: () => {},
+      undo: handleSequencerUndo,
+      clearTrack: () => handleSequencerClearTrack(0),
+      clearPattern: handleSequencerClearAll,
+      workstationMode: () => handleChangeWorkstationMode(workstationMode === 'keys' ? 'seq' : 'keys'),
+      fxRouteKeys: () => handleChangeFxRouting(fxRouting === 'keys' ? 'off' : 'keys'),
+      fxRoutePads: () => handleChangeFxRouting(fxRouting === 'pads' ? 'off' : 'pads'),
+      toggleArp: () => setArpState((prev) => ({ ...prev, enabled: !prev.enabled })),
+      toggleArpHold: () => setArpState((prev) => ({ ...prev, hold: !prev.hold })),
+    };
+  });
 
   // Iluminación ambiental reactiva al instrumento seleccionado
   const getAmbientGlow = () => {
@@ -1087,6 +1331,25 @@ export const App: React.FC = () => {
                 </button>
               </div>
             )}
+            {/* Botón Toggle de MIDI Learn */}
+            <button
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => {
+                setIsMidiLearnActive((prev) => !prev);
+                setSelectedLearnTarget(null);
+              }}
+              className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-[11px] font-mono transition ${
+                isMidiLearnActive
+                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/60 shadow-[0_0_12px_rgba(245,158,11,0.35)] animate-pulse'
+                  : 'bg-white/[0.04] text-slate-400 hover:text-amber-300 border border-white/10'
+              }`}
+              title={isMidiLearnActive ? 'Desactivar Modo MIDI Learn' : 'Activar MIDI Learn (Mapear perillas, faders y botones a tu hardware)'}
+            >
+              <Sliders className="w-3.5 h-3.5" />
+              <span className="font-bold hidden sm:inline">MIDI LEARN</span>
+              <div className={`w-1.5 h-1.5 rounded-full ${isMidiLearnActive ? 'bg-amber-400 shadow-[0_0_8px_#f59e0b]' : 'bg-slate-600'}`} />
+            </button>
           </div>
 
           {/* Control de Tempo BPM */}
@@ -1131,6 +1394,53 @@ export const App: React.FC = () => {
         </div>
       </header>
 
+      {/* Barra Superior Informativa de Modo MIDI Learn */}
+      {isMidiLearnActive && (
+        <div className="w-full bg-[#18130a] border-b border-amber-500/40 px-4 py-1.5 flex flex-wrap items-center justify-between gap-2 z-30 animate-in fade-in slide-in-from-top-1 duration-200">
+          <div className="flex items-center gap-2 text-xs font-mono">
+            <div className="w-2 h-2 rounded-full bg-amber-400 shadow-[0_0_8px_#f59e0b] animate-ping shrink-0" />
+            <span className="text-amber-300 font-bold uppercase tracking-wider shrink-0">MODO MIDI LEARN ACTIVO:</span>
+            {selectedLearnTarget ? (
+              <span className="text-amber-100 bg-amber-950/60 border border-amber-500/40 px-2 py-0.5 rounded animate-pulse">
+                Mueve una perilla/fader o pulsa una tecla/pad en tu controlador para asignar: <strong>
+                  {selectedLearnTarget.type === 'fader' ? (selectedLearnTarget.index === 8 ? 'Master Volume (F9)' : `Fader ${selectedLearnTarget.index + 1}`) :
+                   selectedLearnTarget.type === 'knob' ? `Knob ${selectedLearnTarget.index + 1}` :
+                   selectedLearnTarget.type === 'pad' ? `Pad ${selectedLearnTarget.index + 1}` :
+                   ACTION_LABELS[selectedLearnTarget.id] || selectedLearnTarget.id}
+                </strong>
+              </span>
+            ) : (
+              <span className="text-zinc-300">
+                Haz clic en cualquier control (Faders, Knobs, Pads o Transporte) para aprender su mapeo.
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                const def = resetSavedMidiMapping();
+                setMidiLearnMapping(def);
+                setLastLearnedInfo({ label: 'Mapeos Restablecidos', detail: 'Valores por defecto aplicados' });
+              }}
+              className="text-[10px] font-mono text-zinc-400 hover:text-rose-300 px-2 py-0.5 rounded bg-black/40 border border-white/10 transition cursor-pointer"
+            >
+              Restablecer Mapeos
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setIsMidiLearnActive(false);
+                setSelectedLearnTarget(null);
+              }}
+              className="text-[10px] font-mono text-amber-300 hover:text-white px-2 py-0.5 rounded bg-amber-500/20 border border-amber-500/40 transition font-bold cursor-pointer"
+            >
+              Salir (Listo)
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Contenido Principal: Consola Flotante Centrada Ergonómicamente */}
       <main className="flex-1 p-2 sm:py-3 sm:px-4 flex flex-col justify-center items-center relative z-10 my-auto">
         <div className="studio-console flex flex-col w-full max-w-6xl my-auto transition-all duration-200">
@@ -1146,6 +1456,10 @@ export const App: React.FC = () => {
             onChangeFxRouting={handleChangeFxRouting}
             arpState={arpState}
             onChangeArpState={handleChangeArpState}
+            isMidiLearnActive={isMidiLearnActive}
+            selectedLearnTarget={selectedLearnTarget}
+            onSelectLearnTarget={setSelectedLearnTarget}
+            midiLearnMapping={midiLearnMapping}
             onTriggerNote={handleTriggerNote}
             onReleaseNote={handleReleaseNote}
             onChangeFader={handleChangeFader}
@@ -1160,6 +1474,11 @@ export const App: React.FC = () => {
               viewMode={workstationMode}
               onChangeViewMode={handleChangeWorkstationMode}
               sequencerState={sequencerState}
+              activePads={activePads}
+              isMidiLearnActive={isMidiLearnActive}
+              selectedLearnTarget={selectedLearnTarget}
+              onSelectLearnTarget={setSelectedLearnTarget}
+              midiLearnMapping={midiLearnMapping}
               onTriggerPad={handleSequencerTriggerPad}
               onTogglePlay={handleTogglePlay}
               onStop={handleStop}
@@ -1257,6 +1576,17 @@ export const App: React.FC = () => {
               <span className="text-[10px] font-mono text-zinc-500 mt-1">{bootProgress}%</span>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Toast Flotante de Confirmación de Aprendizaje */}
+      {lastLearnedInfo && (
+        <div className="fixed bottom-6 right-6 z-50 bg-[#12141a] border border-amber-500/60 shadow-[0_4px_24px_rgba(0,0,0,0.8),0_0_20px_rgba(245,158,11,0.35)] rounded-xl px-4 py-3 flex items-center gap-3 animate-in fade-in slide-in-from-bottom-2 duration-200">
+          <div className="w-2.5 h-2.5 rounded-full bg-amber-400 shadow-[0_0_8px_#f59e0b] animate-ping" />
+          <div className="flex flex-col">
+            <span className="text-xs font-mono font-bold text-amber-300 uppercase tracking-wider">{lastLearnedInfo.label}</span>
+            <span className="text-[11px] font-mono text-zinc-300">{lastLearnedInfo.detail}</span>
+          </div>
         </div>
       )}
 

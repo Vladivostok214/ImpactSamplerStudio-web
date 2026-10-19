@@ -16,6 +16,7 @@ export class WebMidiManager {
   private onCcEventListeners: CcEventCallback[] = [];
   private onPitchBendListeners: PitchBendCallback[] = [];
   private onTransportListeners: TransportCallback[] = [];
+  public shouldInterceptNote: ((note: number, velocity: number) => boolean) | null = null;
 
   private constructor() {}
 
@@ -70,19 +71,27 @@ export class WebMidiManager {
     if (command === 0x09) {
       const note = data1;
       const velocity = data2;
+      const intercepted = this.shouldInterceptNote ? this.shouldInterceptNote(note, velocity) : false;
       if (velocity > 0) {
-        audioBridge.noteOn(note, velocity, channel);
+        if (!intercepted) {
+          audioBridge.noteOn(note, velocity, channel);
+        }
         this.notifyNoteEvent(note, velocity, true);
       } else {
         // Velocity 0 es tratado como Note Off en protocolo MIDI
-        audioBridge.noteOff(note, channel);
+        if (!intercepted) {
+          audioBridge.noteOff(note, channel);
+        }
         this.notifyNoteEvent(note, 0, false);
       }
     }
     // 0x08: Note Off
     else if (command === 0x08) {
       const note = data1;
-      audioBridge.noteOff(note, channel);
+      const intercepted = this.shouldInterceptNote ? this.shouldInterceptNote(note, 0) : false;
+      if (!intercepted) {
+        audioBridge.noteOff(note, channel);
+      }
       this.notifyNoteEvent(note, 0, false);
     }
     // 0x0B: Control Change (Faders, Knobs, Mod Wheel, Transporte, etc.)

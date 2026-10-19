@@ -2,12 +2,17 @@ import React, { useState, useRef, useEffect } from "react";
 import { Settings } from "lucide-react";
 import { FxRouting } from "../types/sampler";
 import { ArpMode, ArpRate, ArpStateInfo } from "../types/arpeggiator";
+import { MidiLearnTarget, MidiLearnMapping, getActionMappingLabel } from "../types/midiLearn";
 
 interface PerformanceBayProps {
   fxRouting?: FxRouting;
   onChangeFxRouting?: (routing: FxRouting) => void;
   arpState?: ArpStateInfo;
   onChangeArpState?: (state: ArpStateInfo) => void;
+  isMidiLearnActive?: boolean;
+  selectedLearnTarget?: MidiLearnTarget | null;
+  onSelectLearnTarget?: (target: MidiLearnTarget) => void;
+  midiLearnMapping?: MidiLearnMapping;
 }
 
 export const PerformanceBay: React.FC<PerformanceBayProps> = ({
@@ -15,6 +20,10 @@ export const PerformanceBay: React.FC<PerformanceBayProps> = ({
   onChangeFxRouting,
   arpState: externalArpState,
   onChangeArpState,
+  isMidiLearnActive = false,
+  selectedLearnTarget = null,
+  onSelectLearnTarget,
+  midiLearnMapping,
 }) => {
   const [internalArpState, setInternalArpState] = useState<ArpStateInfo>({
     enabled: false,
@@ -58,14 +67,26 @@ export const PerformanceBay: React.FC<PerformanceBayProps> = ({
   }, [isPopoverOpen]);
 
   const handleToggleArp = () => {
+    if (isMidiLearnActive) {
+      onSelectLearnTarget?.({ type: "action", id: "toggleArp" });
+      return;
+    }
     updateArpState((prev) => ({ ...prev, enabled: !prev.enabled }));
   };
 
   const handleToggleHold = () => {
+    if (isMidiLearnActive) {
+      onSelectLearnTarget?.({ type: "action", id: "toggleArpHold" });
+      return;
+    }
     updateArpState((prev) => ({ ...prev, hold: !prev.hold }));
   };
 
   const handleToggleKeys = () => {
+    if (isMidiLearnActive) {
+      onSelectLearnTarget?.({ type: "action", id: "fxRouteKeys" });
+      return;
+    }
     if (!onChangeFxRouting) return;
     if (fxRouting === "keys") onChangeFxRouting("off");
     else if (fxRouting === "off") onChangeFxRouting("keys");
@@ -74,12 +95,40 @@ export const PerformanceBay: React.FC<PerformanceBayProps> = ({
   };
 
   const handleTogglePads = () => {
+    if (isMidiLearnActive) {
+      onSelectLearnTarget?.({ type: "action", id: "fxRoutePads" });
+      return;
+    }
     if (!onChangeFxRouting) return;
     if (fxRouting === "pads") onChangeFxRouting("off");
     else if (fxRouting === "off") onChangeFxRouting("pads");
     else if (fxRouting === "both") onChangeFxRouting("keys");
     else if (fxRouting === "keys") onChangeFxRouting("both");
   };
+
+  const isArpLearnSelected =
+    isMidiLearnActive &&
+    selectedLearnTarget?.type === "action" &&
+    selectedLearnTarget.id === "toggleArp";
+  const arpMapped = getActionMappingLabel(midiLearnMapping, "toggleArp");
+
+  const isHoldLearnSelected =
+    isMidiLearnActive &&
+    selectedLearnTarget?.type === "action" &&
+    selectedLearnTarget.id === "toggleArpHold";
+  const holdMapped = getActionMappingLabel(midiLearnMapping, "toggleArpHold");
+
+  const isKeysLearnSelected =
+    isMidiLearnActive &&
+    selectedLearnTarget?.type === "action" &&
+    selectedLearnTarget.id === "fxRouteKeys";
+  const keysMapped = getActionMappingLabel(midiLearnMapping, "fxRouteKeys");
+
+  const isPadsLearnSelected =
+    isMidiLearnActive &&
+    selectedLearnTarget?.type === "action" &&
+    selectedLearnTarget.id === "fxRoutePads";
+  const padsMapped = getActionMappingLabel(midiLearnMapping, "fxRoutePads");
 
   const isFxKeysActive = fxRouting === "keys" || fxRouting === "both";
   const isFxPadsActive = fxRouting === "pads" || fxRouting === "both";
@@ -90,6 +139,10 @@ export const PerformanceBay: React.FC<PerformanceBayProps> = ({
     "bg-[#18191e] text-zinc-400 hover:text-zinc-200 hover:bg-[#24262d] border border-white/10 hover:border-white/20 font-bold";
   const fxBtnCyan =
     "bg-cyan-950/30 text-cyan-300 border border-cyan-400/60 shadow-[0_0_6px_rgba(34,211,238,0.22),inset_0_1px_0_rgba(255,255,255,0.08)] font-black";
+  const fxBtnLearnSel =
+    "border-2 border-amber-400 bg-amber-950/40 text-amber-200 shadow-[0_0_15px_rgba(245,158,11,0.8)] ring-2 ring-amber-400/60 animate-pulse font-bold";
+  const fxBtnLearn =
+    "border border-amber-500/60 bg-amber-950/20 text-amber-300 hover:border-amber-400 font-semibold";
 
   const renderLed = (on: boolean, colorClass: string, glow: string) => (
     <span
@@ -107,13 +160,25 @@ export const PerformanceBay: React.FC<PerformanceBayProps> = ({
         <button
           type="button"
           onClick={handleToggleArp}
+          title={
+            isMidiLearnActive
+              ? `Arpegiador: ${arpMapped ? `Asignado (${arpMapped})` : "Sin asignar"}`
+              : arpState.enabled
+              ? "Desactivar Arpegiador"
+              : "Activar Arpegiador"
+          }
           className={`flex-1 h-full px-1.5 flex items-center justify-center gap-1 font-mono text-[9.5px] tracking-wider transition-all cursor-pointer border-r border-white/10 ${
-            arpState.enabled
+            isArpLearnSelected
+              ? "border-2 border-amber-400 bg-amber-950/40 text-amber-200 shadow-[0_0_15px_rgba(245,158,11,0.8)] animate-pulse font-bold"
+              : isMidiLearnActive
+              ? "bg-amber-950/20 text-amber-300 hover:bg-amber-950/40 font-semibold"
+              : arpState.enabled
               ? "bg-emerald-950/40 text-emerald-300 font-black shadow-[inset_0_0_8px_rgba(16,185,129,0.2)]"
               : "text-zinc-400 hover:text-zinc-200 hover:bg-[#24262d] font-bold"
           }`}
         >
-          {renderLed(arpState.enabled, "bg-emerald-400", "shadow-[0_0_6px_#10b981]")}
+          {!isMidiLearnActive &&
+            renderLed(arpState.enabled, "bg-emerald-400", "shadow-[0_0_6px_#10b981]")}
           <span>ARP</span>
         </button>
 
@@ -121,13 +186,25 @@ export const PerformanceBay: React.FC<PerformanceBayProps> = ({
         <button
           type="button"
           onClick={handleToggleHold}
+          title={
+            isMidiLearnActive
+              ? `Hold / Latch: ${holdMapped ? `Asignado (${holdMapped})` : "Sin asignar"}`
+              : arpState.hold
+              ? "Desactivar Hold / Latch"
+              : "Activar Hold / Latch"
+          }
           className={`flex-1 h-full px-1.5 flex items-center justify-center gap-1 font-mono text-[9.5px] tracking-wider transition-all cursor-pointer border-r border-white/10 ${
-            arpState.hold
+            isHoldLearnSelected
+              ? "border-2 border-amber-400 bg-amber-950/40 text-amber-200 shadow-[0_0_15px_rgba(245,158,11,0.8)] animate-pulse font-bold"
+              : isMidiLearnActive
+              ? "bg-amber-950/20 text-amber-300 hover:bg-amber-950/40 font-semibold"
+              : arpState.hold
               ? "bg-amber-950/40 text-amber-300 font-black shadow-[inset_0_0_8px_rgba(245,158,11,0.2)]"
               : "text-zinc-400 hover:text-zinc-200 hover:bg-[#24262d] font-bold"
           }`}
         >
-          {renderLed(arpState.hold, "bg-amber-400", "shadow-[0_0_6px_#f59e0b]")}
+          {!isMidiLearnActive &&
+            renderLed(arpState.hold, "bg-amber-400", "shadow-[0_0_6px_#f59e0b]")}
           <span>HOLD</span>
         </button>
 
@@ -217,18 +294,46 @@ export const PerformanceBay: React.FC<PerformanceBayProps> = ({
         <button
           type="button"
           onClick={handleToggleKeys}
-          className={`${fxBtnBase} ${isFxKeysActive ? fxBtnCyan : fxBtnOff}`}
+          title={
+            isMidiLearnActive
+              ? `FX Route (Keys): ${keysMapped ? `Asignado (${keysMapped})` : "Sin asignar"}`
+              : "FX a Teclado"
+          }
+          className={`${fxBtnBase} ${
+            isKeysLearnSelected
+              ? fxBtnLearnSel
+              : isMidiLearnActive
+              ? fxBtnLearn
+              : isFxKeysActive
+              ? fxBtnCyan
+              : fxBtnOff
+          }`}
         >
-          {renderLed(isFxKeysActive, "bg-cyan-400", "shadow-[0_0_6px_#22d3ee]")}
+          {!isMidiLearnActive &&
+            renderLed(isFxKeysActive, "bg-cyan-400", "shadow-[0_0_6px_#22d3ee]")}
           <span>FX KEYS</span>
         </button>
 
         <button
           type="button"
           onClick={handleTogglePads}
-          className={`${fxBtnBase} ${isFxPadsActive ? fxBtnCyan : fxBtnOff}`}
+          title={
+            isMidiLearnActive
+              ? `FX Route (Pads): ${padsMapped ? `Asignado (${padsMapped})` : "Sin asignar"}`
+              : "FX a Pads"
+          }
+          className={`${fxBtnBase} ${
+            isPadsLearnSelected
+              ? fxBtnLearnSel
+              : isMidiLearnActive
+              ? fxBtnLearn
+              : isFxPadsActive
+              ? fxBtnCyan
+              : fxBtnOff
+          }`}
         >
-          {renderLed(isFxPadsActive, "bg-cyan-400", "shadow-[0_0_6px_#22d3ee]")}
+          {!isMidiLearnActive &&
+            renderLed(isFxPadsActive, "bg-cyan-400", "shadow-[0_0_6px_#22d3ee]")}
           <span>FX PADS</span>
         </button>
       </div>
