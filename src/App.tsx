@@ -16,6 +16,51 @@ import { Activity, Upload, Music, Volume2, Loader2, Keyboard, Play, Square, Circ
 import '@fontsource/geist-sans';
 import '@fontsource/geist-mono';
 
+async function downloadSf2Buffer(
+  downloadUrl: string,
+  fileSizeMb: number,
+  onProgress?: (pct: number) => void
+): Promise<ArrayBuffer> {
+  const proxyUrl = `/api/download?url=${encodeURIComponent(downloadUrl)}`;
+  let response: Response;
+  try {
+    response = await fetch(proxyUrl);
+    if (!response.ok) throw new Error(`Proxy status: ${response.status}`);
+  } catch {
+    response = await fetch(downloadUrl);
+  }
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+  const contentLength = response.headers.get('content-length');
+  const totalBytes = contentLength ? parseInt(contentLength, 10) : fileSizeMb * 1024 * 1024;
+  const reader = response.body?.getReader();
+  if (!reader) {
+    const buf = await response.arrayBuffer();
+    onProgress?.(100);
+    return buf;
+  }
+  let receivedBytes = 0;
+  const chunks: Uint8Array[] = [];
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    if (value) {
+      chunks.push(value);
+      receivedBytes += value.length;
+      const pct = Math.min(99, Math.round((receivedBytes / totalBytes) * 100));
+      onProgress?.(pct);
+    }
+  }
+  const full = new Uint8Array(receivedBytes);
+  let off = 0;
+  for (const ch of chunks) {
+    full.set(ch, off);
+    off += ch.length;
+  }
+  onProgress?.(100);
+  return full.buffer;
+}
+
 export const App: React.FC = () => {
   const [isAudioStarted, setIsAudioStarted] = useState(false);
   const [midiDevices, setMidiDevices] = useState<string[]>([]);
@@ -74,10 +119,11 @@ export const App: React.FC = () => {
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
 
   // Splash Inicial Noir y Auto-carga de Grand Piano
-  const [isBooting, setIsBooting] = useState<boolean>(true);
+  const [isBooting, setIsBooting] = useState<boolean>(() => !localStorage.getItem('impact_has_cached_instruments'));
   const [bootFadeOut, setBootFadeOut] = useState<boolean>(false);
   const [bootStatusText, setBootStatusText] = useState<string>('Iniciando motor de audio...');
   const [bootProgress, setBootProgress] = useState<number | null>(null);
+  const lastMelodicSoundfontRef = useRef<SoundFontInfo | null>(null);
 
   const handleTogglePlay = async () => {
     if (!isAudioStarted) {
@@ -318,6 +364,13 @@ export const App: React.FC = () => {
       setCurrentSoundfont(sfInfo);
       setActivePresetIndex(0);
       setIsAudioStarted(true);
+
+      if (filename.toLowerCase().includes('rx7')) {
+        setWorkstationMode('seq');
+      } else {
+        setWorkstationMode('keys');
+        lastMelodicSoundfontRef.current = sfInfo;
+      }
     } catch (err) {
       console.error('Error cargando SoundFont:', err);
       alert('Error cargando el archivo SoundFont en WebAssembly');
@@ -326,138 +379,136 @@ export const App: React.FC = () => {
     }
   };
 
-  // Inicialización de Almacenamiento Local IndexedDB, Auto-carga de Grand Piano y Splash Screen
+  // Inicialización de Almacenamiento Local IndexedDB, Auto-carga de Grand Piano y Splash Screen Inteligente
   useEffect(() => {
     let isMounted = true;
     const bootApp = async () => {
-      const minTimerPromise = new Promise((resolve) => setTimeout(resolve, 2500));
       try {
         const list = await SoundFontStorage.list();
         if (isMounted) setSavedSoundfonts(list);
 
-        const lastId = SoundFontStorage.getLastLoadedId();
-        let loaded = false;
+        const pianoDef = FACTORY_INSTRUMENTS.find((f) => f.id === 'Piano - Realtime.sf2') || FACTORY_INSTRUMENTS[1];
+        const rx7Def = FACTORY_INSTRUMENTS.find((f) => f.id === 'Yamaha_RX7_Drums.sf2') || FACTORY_INSTRUMENTS[0];
 
-        // 1. Si el usuario ya tenía un instrumento cargado previamente, restaurarlo
-        if (lastId) {
-          const entry = await SoundFontStorage.get(lastId);
-          if (entry && isMounted) {
-            setBootStatusText(`Cargando ${entry.displayName}...`);
+        const hasPiano = list.some((x) => x.id === pianoDef.id);
+        const hasRx7 = list.some((x) => x.id === rx7Def.id);
+
+        if (hasPiano) {
+          // 1. Si Grand Piano YA está en caché: ¡ABRIR DE INMEDIATO SIN ESPERA!
+          localStorage.setItem('impact_has_cached_instruments', '1');
+          if (isMounted) {
+            setIsBooting(false);
+          }
+
+          const lastId = SoundFontStorage.getLastLoadedId();
+          const targetId = (lastId && list.some((x) => x.id === lastId)) ? lastId : pianoDef.id;
+          const stored = await SoundFontStorage.get(targetId);
+
+          if (stored && isMounted) {
             await audioBridge.initialize();
-            await audioBridge.loadSoundFont(entry.data, entry.filename);
+            await audioBridge.loadSoundFont(stored.data, stored.filename);
 
-            const presets = parseSf2Presets(entry.data);
+            const presets = parseSf2Presets(stored.data);
             const sfInfo: SoundFontInfo = {
-              id: entry.id,
-              filename: entry.filename,
-              displayName: entry.displayName,
-              description: entry.description,
-              category: entry.category,
-              fileSizeMb: entry.fileSizeMb,
+              id: stored.id,
+              filename: stored.filename,
+              displayName: stored.displayName,
+              description: stored.description,
+              category: stored.category,
+              fileSizeMb: stored.fileSizeMb,
               presets,
             };
-            if (isMounted) {
-              setCurrentSoundfont(sfInfo);
-              loaded = true;
+            setCurrentSoundfont(sfInfo);
+            if (!stored.filename.toLowerCase().includes('rx7')) {
+              lastMelodicSoundfontRef.current = sfInfo;
+              setWorkstationMode('keys');
+            } else {
+              setWorkstationMode('seq');
             }
           }
-        }
 
-        // 2. Si no hay instrumento previo, auto-cargar Grand Piano por defecto
-        if (!loaded && isMounted) {
-          const pianoDef = FACTORY_INSTRUMENTS.find((f) => f.id === 'Piano - Realtime.sf2') || FACTORY_INSTRUMENTS[1];
-          const storedPiano = await SoundFontStorage.get(pianoDef.id);
-
-          if (storedPiano && isMounted) {
-            setBootStatusText('Cargando Grand Piano...');
-            await audioBridge.initialize();
-            await audioBridge.loadSoundFont(storedPiano.data, storedPiano.filename);
-            SoundFontStorage.setLastLoadedId(storedPiano.id);
-
-            const presets = parseSf2Presets(storedPiano.data);
-            const sfInfo: SoundFontInfo = {
-              id: storedPiano.id,
-              filename: storedPiano.filename,
-              displayName: storedPiano.displayName,
-              description: storedPiano.description,
-              category: storedPiano.category,
-              fileSizeMb: storedPiano.fileSizeMb,
-              presets,
-            };
-            if (isMounted) {
-              setCurrentSoundfont(sfInfo);
-              loaded = true;
-            }
-          } else if (isMounted) {
-            // Descarga inicial de Grand Piano
-            setBootStatusText('Descargando Grand Piano...');
-            setBootProgress(0);
-
-            const proxyUrl = `/api/download?url=${encodeURIComponent(pianoDef.downloadUrl)}`;
-            let response: Response;
-            try {
-              response = await fetch(proxyUrl);
-              if (!response.ok) throw new Error(`Proxy status: ${response.status}`);
-            } catch {
-              response = await fetch(pianoDef.downloadUrl);
-            }
-
-            if (response.ok) {
-              const contentLength = response.headers.get('content-length');
-              const totalBytes = contentLength ? parseInt(contentLength, 10) : pianoDef.fileSizeMb * 1024 * 1024;
-              const reader = response.body?.getReader();
-
-              let buffer: ArrayBuffer;
-              if (!reader) {
-                buffer = await response.arrayBuffer();
-              } else {
-                let receivedBytes = 0;
-                const chunks: Uint8Array[] = [];
-                while (true) {
-                  const { done, value } = await reader.read();
-                  if (done) break;
-                  if (value) {
-                    chunks.push(value);
-                    receivedBytes += value.length;
-                    const pct = Math.min(99, Math.round((receivedBytes / totalBytes) * 100));
-                    if (isMounted) setBootProgress(pct);
-                  }
-                }
-                const full = new Uint8Array(receivedBytes);
-                let off = 0;
-                for (const ch of chunks) {
-                  full.set(ch, off);
-                  off += ch.length;
-                }
-                buffer = full.buffer;
-              }
-
-              if (isMounted) {
-                setBootStatusText('Iniciando Grand Piano...');
-                setBootProgress(100);
-                await finishLoadingSoundFont(
-                  pianoDef.id,
-                  pianoDef.filename,
-                  pianoDef.displayName,
-                  pianoDef.description,
-                  'Factory',
-                  pianoDef.fileSizeMb,
-                  buffer
-                );
-              }
-            }
+          // Si falta RX7 por alguna razón, descargarlo silenciosamente en segundo plano
+          if (!hasRx7) {
+            downloadSf2Buffer(rx7Def.downloadUrl, rx7Def.fileSizeMb)
+              .then(async (rx7Buf) => {
+                await SoundFontStorage.save({
+                  id: rx7Def.id,
+                  filename: rx7Def.filename,
+                  displayName: rx7Def.displayName,
+                  description: rx7Def.description,
+                  category: 'Factory',
+                  fileSizeMb: rx7Def.fileSizeMb,
+                  data: rx7Buf,
+                  savedAt: Date.now(),
+                });
+                const updatedList = await SoundFontStorage.list();
+                if (isMounted) setSavedSoundfonts(updatedList);
+              })
+              .catch((err) => console.warn('Error descargando RX7 en segundo plano:', err));
           }
+          return;
         }
-      } catch (err) {
-        console.warn('Error inicializando inicio de app:', err);
-      } finally {
-        await minTimerPromise;
+
+        // 2. Si NO está en caché (primera visita): mostrar Splash y descargar Grand Piano + Yamaha RX7
         if (isMounted) {
+          setIsBooting(true);
+          setBootFadeOut(false);
+          setBootStatusText('Descargando Grand Piano...');
+          setBootProgress(0);
+        }
+
+        const pianoBuf = await downloadSf2Buffer(pianoDef.downloadUrl, pianoDef.fileSizeMb, (pct) => {
+          if (isMounted) setBootProgress(pct);
+        });
+
+        if (isMounted) {
+          setBootStatusText('Iniciando Grand Piano...');
+          await finishLoadingSoundFont(
+            pianoDef.id,
+            pianoDef.filename,
+            pianoDef.displayName,
+            pianoDef.description,
+            'Factory',
+            pianoDef.fileSizeMb,
+            pianoBuf
+          );
+        }
+
+        // Descarga de Yamaha RX7 (solo 19.3 MB) para tener la percusión lista desde el inicio
+        if (isMounted) {
+          setBootStatusText('Descargando Batería Yamaha RX7...');
+          setBootProgress(0);
+        }
+
+        const rx7Buf = await downloadSf2Buffer(rx7Def.downloadUrl, rx7Def.fileSizeMb, (pct) => {
+          if (isMounted) setBootProgress(pct);
+        });
+
+        await SoundFontStorage.save({
+          id: rx7Def.id,
+          filename: rx7Def.filename,
+          displayName: rx7Def.displayName,
+          description: rx7Def.description,
+          category: 'Factory',
+          fileSizeMb: rx7Def.fileSizeMb,
+          data: rx7Buf,
+          savedAt: Date.now(),
+        });
+
+        localStorage.setItem('impact_has_cached_instruments', '1');
+        const finalList = await SoundFontStorage.list();
+        if (isMounted) {
+          setSavedSoundfonts(finalList);
+          setBootStatusText('¡Listo!');
+          setBootProgress(100);
           setBootFadeOut(true);
           setTimeout(() => {
             if (isMounted) setIsBooting(false);
-          }, 700);
+          }, 500);
         }
+      } catch (err) {
+        console.warn('Error inicializando inicio de app:', err);
+        if (isMounted) setIsBooting(false);
       }
     };
 
@@ -495,64 +546,9 @@ export const App: React.FC = () => {
       setDownloadingId(instrument.id);
       setDownloadProgress((prev) => ({ ...prev, [instrument.id]: 0 }));
 
-      // Usar endpoint proxy /api/download para evitar bloqueo CORS de GitHub Releases
-      const proxyUrl = `/api/download?url=${encodeURIComponent(instrument.downloadUrl)}`;
-      let response: Response;
-      try {
-        response = await fetch(proxyUrl);
-        if (!response.ok) {
-          throw new Error(`Proxy status: ${response.status}`);
-        }
-      } catch {
-        // Fallback directo si no está disponible el proxy
-        response = await fetch(instrument.downloadUrl);
-      }
-
-      if (!response.ok) {
-        throw new Error(`Error HTTP: ${response.status} ${response.statusText}`);
-      }
-
-      const contentLength = response.headers.get('content-length');
-      const totalBytes = contentLength ? parseInt(contentLength, 10) : instrument.fileSizeMb * 1024 * 1024;
-
-      const reader = response.body?.getReader();
-      if (!reader) {
-        const buffer = await response.arrayBuffer();
-        await finishLoadingSoundFont(
-          instrument.id,
-          instrument.filename,
-          instrument.displayName,
-          instrument.description,
-          'Factory',
-          instrument.fileSizeMb,
-          buffer
-        );
-        setDownloadProgress((prev) => ({ ...prev, [instrument.id]: 100 }));
-        return;
-      }
-
-      let receivedBytes = 0;
-      const chunks: Uint8Array[] = [];
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        if (value) {
-          chunks.push(value);
-          receivedBytes += value.length;
-          const pct = Math.min(99, Math.round((receivedBytes / totalBytes) * 100));
-          setDownloadProgress((prev) => ({ ...prev, [instrument.id]: pct }));
-        }
-      }
-
-      const fullBuffer = new Uint8Array(receivedBytes);
-      let offset = 0;
-      for (const chunk of chunks) {
-        fullBuffer.set(chunk, offset);
-        offset += chunk.length;
-      }
-
-      setDownloadProgress((prev) => ({ ...prev, [instrument.id]: 100 }));
+      const buffer = await downloadSf2Buffer(instrument.downloadUrl, instrument.fileSizeMb, (pct) => {
+        setDownloadProgress((prev) => ({ ...prev, [instrument.id]: pct }));
+      });
 
       await finishLoadingSoundFont(
         instrument.id,
@@ -561,7 +557,7 @@ export const App: React.FC = () => {
         instrument.description,
         'Factory',
         instrument.fileSizeMb,
-        fullBuffer.buffer
+        buffer
       );
     } catch (err) {
       console.error('Error descargando instrumento de fábrica:', err);
@@ -604,6 +600,13 @@ export const App: React.FC = () => {
       setCurrentSoundfont(sfInfo);
       setActivePresetIndex(0);
       setIsAudioStarted(true);
+
+      if (entry.filename.toLowerCase().includes('rx7')) {
+        setWorkstationMode('seq');
+      } else {
+        setWorkstationMode('keys');
+        lastMelodicSoundfontRef.current = sfInfo;
+      }
     } catch (err) {
       console.error('Error cargando SoundFont guardado:', err);
       alert('Error cargando el instrumento desde el almacenamiento local.');
@@ -617,11 +620,65 @@ export const App: React.FC = () => {
       await SoundFontStorage.delete(id);
       const list = await SoundFontStorage.list();
       setSavedSoundfonts(list);
+      if (list.length === 0) {
+        localStorage.removeItem('impact_has_cached_instruments');
+      }
       if (SoundFontStorage.getLastLoadedId() === id) {
         SoundFontStorage.setLastLoadedId('');
       }
     } catch (err) {
       console.error('Error eliminando SoundFont:', err);
+    }
+  };
+
+  const handleChangeWorkstationMode = async (newMode: 'keys' | 'seq') => {
+    if (newMode === workstationMode) return;
+    setWorkstationMode(newMode);
+
+    if (newMode === 'seq') {
+      // Si entramos a SEQ y no tenemos RX7 activo, recordar melódico y cargar RX7
+      if (!currentSoundfont?.filename.toLowerCase().includes('rx7')) {
+        if (currentSoundfont) {
+          lastMelodicSoundfontRef.current = currentSoundfont;
+        }
+        const rx7Entry = await SoundFontStorage.get('Yamaha_RX7_Drums.sf2');
+        if (rx7Entry) {
+          await audioBridge.loadSoundFont(rx7Entry.data, rx7Entry.filename);
+          const presets = parseSf2Presets(rx7Entry.data);
+          const sfInfo: SoundFontInfo = {
+            id: rx7Entry.id,
+            filename: rx7Entry.filename,
+            displayName: rx7Entry.displayName,
+            description: rx7Entry.description,
+            category: rx7Entry.category,
+            fileSizeMb: rx7Entry.fileSizeMb,
+            presets,
+          };
+          setCurrentSoundfont(sfInfo);
+          setActivePresetIndex(0);
+        }
+      }
+    } else if (newMode === 'keys') {
+      // Si volvemos a KEYS y teníamos RX7 activo, restaurar el instrumento melódico previo
+      if (currentSoundfont?.filename.toLowerCase().includes('rx7')) {
+        const targetId = lastMelodicSoundfontRef.current?.id || 'Piano - Realtime.sf2';
+        const stored = await SoundFontStorage.get(targetId);
+        if (stored) {
+          await audioBridge.loadSoundFont(stored.data, stored.filename);
+          const presets = parseSf2Presets(stored.data);
+          const sfInfo: SoundFontInfo = {
+            id: stored.id,
+            filename: stored.filename,
+            displayName: stored.displayName,
+            description: stored.description,
+            category: stored.category,
+            fileSizeMb: stored.fileSizeMb,
+            presets,
+          };
+          setCurrentSoundfont(sfInfo);
+          setActivePresetIndex(0);
+        }
+      }
     }
   };
 
@@ -1099,7 +1156,7 @@ export const App: React.FC = () => {
           >
             <StepSequencer
               viewMode={workstationMode}
-              onChangeViewMode={setWorkstationMode}
+              onChangeViewMode={handleChangeWorkstationMode}
               sequencerState={sequencerState}
               onTriggerPad={handleSequencerTriggerPad}
               onTogglePlay={handleTogglePlay}
