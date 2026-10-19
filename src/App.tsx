@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { audioBridge } from './audio/WebAudioBridge';
 import { webMidi } from './midi/WebMidiManager';
 import { HardwareSkeleton } from './components/HardwareSkeleton';
@@ -894,6 +894,73 @@ export const App: React.FC = () => {
     }
   };
 
+  // Lista unificada de todos los instrumentos (Fábrica + Usuario) para el selector OLED
+  const availableSoundfonts: SoundFontInfo[] = useMemo(() => {
+    const factoryOrder = ['piano', 'rhodes', 'mellotron', 'rx7'];
+    const factorySfs: SoundFontInfo[] = FACTORY_INSTRUMENTS.map((f) => {
+      if (currentSoundfont && (currentSoundfont.id === f.id || currentSoundfont.filename === f.filename)) {
+        return currentSoundfont;
+      }
+      return {
+        id: f.id,
+        filename: f.filename,
+        displayName: f.displayName,
+        description: f.description,
+        category: 'Factory',
+        fileSizeMb: f.fileSizeMb,
+        presets: [],
+        isUser: false,
+      };
+    }).sort((a, b) => {
+      const idxA = factoryOrder.findIndex((k) => a.filename.toLowerCase().includes(k));
+      const idxB = factoryOrder.findIndex((k) => b.filename.toLowerCase().includes(k));
+      return (idxA === -1 ? 99 : idxA) - (idxB === -1 ? 99 : idxB);
+    });
+
+    const userSfs: SoundFontInfo[] = savedSoundfonts
+      .filter((s) => !FACTORY_INSTRUMENTS.some((f) => f.id === s.id || f.filename === s.id))
+      .map((s) => {
+        if (currentSoundfont && currentSoundfont.id === s.id) {
+          return currentSoundfont;
+        }
+        return {
+          id: s.id,
+          filename: s.id,
+          displayName: s.displayName,
+          description: 'Instrumento importado',
+          category: 'User',
+          fileSizeMb: s.fileSizeMb,
+          presets: [],
+          isUser: true,
+        };
+      });
+
+    return [...factorySfs, ...userSfs];
+  }, [currentSoundfont, savedSoundfonts]);
+
+  const handleSelectSoundfont = async (idOrFilename: string) => {
+    // 1. Si ya está descargado y en caché local IndexedDB
+    const stored = savedSoundfonts.find(
+      (s) => s.id === idOrFilename || s.id.toLowerCase() === idOrFilename.toLowerCase()
+    );
+    if (stored) {
+      await handleSelectStored(stored.id);
+      return;
+    }
+
+    // 2. Si es un instrumento de fábrica no descargado aún
+    const factoryDef = FACTORY_INSTRUMENTS.find(
+      (f) => f.id === idOrFilename || f.filename === idOrFilename || f.id.toLowerCase() === idOrFilename.toLowerCase()
+    );
+    if (factoryDef) {
+      await handleDownloadFactory(factoryDef);
+      return;
+    }
+
+    // 3. Fallback directo a almacenamiento
+    await handleSelectStored(idOrFilename);
+  };
+
   const handleChangeWorkstationMode = async (newMode: 'keys' | 'seq') => {
     if (newMode === workstationMode) return;
     setWorkstationMode(newMode);
@@ -1298,9 +1365,13 @@ export const App: React.FC = () => {
             knobs={knobs}
             pitchBend={pitchBend}
             modWheel={modWheel}
+            availableSoundfonts={availableSoundfonts}
             currentSoundfont={currentSoundfont}
             activePresetIndex={activePresetIndex}
+            onSelectSoundfont={handleSelectSoundfont}
             onSelectPreset={handleSelectPreset}
+            isDownloading={!!downloadingId}
+            downloadProgress={downloadingId ? (downloadProgress[downloadingId] ?? 0) : null}
             fxRouting={fxRouting}
             onChangeFxRouting={handleChangeFxRouting}
             arpState={arpState}

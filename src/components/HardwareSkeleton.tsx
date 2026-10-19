@@ -29,6 +29,8 @@ interface HardwareSkeletonProps {
   activePresetIndex?: number;
   onSelectSoundfont?: (filename: string) => void;
   onSelectPreset?: (patch: number, index: number, bank?: number) => void;
+  isDownloading?: boolean;
+  downloadProgress?: number | null;
   onTriggerNote: (note: number, velocity: number) => void;
   onReleaseNote: (note: number) => void;
   onChangeFader: (index: number, value: number) => void;
@@ -80,6 +82,8 @@ export const HardwareSkeleton: React.FC<HardwareSkeletonProps> = ({
   activePresetIndex = 0,
   onSelectSoundfont,
   onSelectPreset,
+  isDownloading = false,
+  downloadProgress = null,
   onTriggerNote,
   onReleaseNote,
   onChangeFader,
@@ -398,25 +402,43 @@ export const HardwareSkeleton: React.FC<HardwareSkeletonProps> = ({
           {/* Pantalla OLED Dual */}
           <div className="p-1 bg-[#040406] border border-white/10 rounded-lg shadow-[inset_0_2px_4px_rgba(0,0,0,0.9),0_1px_0_rgba(255,255,255,0.05)] flex items-center justify-between gap-1.5 flex-nowrap">
             <div className="flex-1 min-w-0 h-7 px-2 bg-[#0a0c10] border border-white/10 hover:border-white/25 rounded-md flex items-center gap-1.5 transition-all shadow-[inset_0_1px_2px_rgba(0,0,0,0.8)] overflow-hidden">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_#10b981] shrink-0" />
+              <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${isDownloading ? "bg-amber-400 shadow-[0_0_8px_#f59e0b] animate-pulse" : "bg-emerald-400 shadow-[0_0_6px_#10b981]"}`} />
               <span className="text-[9.5px] font-mono uppercase font-bold tracking-wider text-zinc-400 shrink-0">INST:</span>
-              <select
-                value={currentSoundfont?.filename || ""}
-                onChange={(e) => onSelectSoundfont && onSelectSoundfont(e.target.value)}
-                className="bg-transparent text-emerald-300 font-mono text-[10.5px] font-bold focus:outline-none cursor-pointer w-full truncate pr-1"
-              >
-                {availableSoundfonts.length > 0 ? (
-                  availableSoundfonts.map((sf) => (
-                    <option key={sf.filename} value={sf.filename} className="bg-zinc-950 text-zinc-200 font-mono text-xs">
-                      {sf.displayName.toUpperCase()}
+              {isDownloading ? (
+                <div className="flex items-center gap-1.5 text-amber-300 font-mono text-[10px] font-bold truncate">
+                  <span className="animate-pulse">CARGANDO...</span>
+                  {downloadProgress !== null && <span className="tabular-nums">{downloadProgress}%</span>}
+                </div>
+              ) : (
+                <select
+                  value={
+                    availableSoundfonts.find(
+                      (sf) => sf.id === currentSoundfont?.id || sf.filename === currentSoundfont?.filename
+                    )?.id || currentSoundfont?.id || currentSoundfont?.filename || ""
+                  }
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    e.target.blur();
+                    if (val && onSelectSoundfont) {
+                      onSelectSoundfont(val);
+                    }
+                  }}
+                  className="bg-transparent text-emerald-300 font-mono text-[10.5px] font-bold focus:outline-none cursor-pointer w-full truncate pr-1"
+                  title="Cambiar Instrumento"
+                >
+                  {availableSoundfonts.length > 0 ? (
+                    availableSoundfonts.map((sf) => (
+                      <option key={sf.id || sf.filename} value={sf.id || sf.filename} className="bg-zinc-950 text-zinc-200 font-mono text-xs">
+                        {sf.displayName.toUpperCase()}
+                      </option>
+                    ))
+                  ) : (
+                    <option value={currentSoundfont?.filename || ""} className="bg-zinc-950 text-zinc-200 font-mono text-xs">
+                      {currentSoundfont ? currentSoundfont.displayName.toUpperCase() : "SIN INSTRUMENTO"}
                     </option>
-                  ))
-                ) : (
-                  <option value={currentSoundfont?.filename || ""} className="bg-zinc-950 text-zinc-200 font-mono text-xs">
-                    {currentSoundfont ? currentSoundfont.displayName.toUpperCase() : "SIN INSTRUMENTO"}
-                  </option>
-                )}
-              </select>
+                  )}
+                </select>
+              )}
             </div>
 
             {currentSoundfont && currentSoundfont.presets.length > 1 && (
@@ -427,10 +449,12 @@ export const HardwareSkeleton: React.FC<HardwareSkeletonProps> = ({
                   value={activePresetIndex}
                   onChange={(e) => {
                     const idx = parseInt(e.target.value, 10);
+                    e.target.blur();
                     const preset = currentSoundfont.presets[idx];
                     onSelectPreset?.(preset?.patch ?? 0, idx, preset?.bank ?? 0);
                   }}
                   className="bg-transparent text-amber-300 font-mono text-[10.5px] font-bold focus:outline-none cursor-pointer w-full truncate pr-1"
+                  title="Cambiar Patch"
                 >
                   {currentSoundfont.presets.map((p, idx) => (
                     <option key={idx} value={idx} className="bg-zinc-950 text-zinc-200 font-mono text-xs">
