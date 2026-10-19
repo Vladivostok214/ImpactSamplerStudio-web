@@ -17,10 +17,22 @@ declare function registerProcessor(
 
 declare const sampleRate: number;
 
+const DRUM_NOTE_TO_PAD: Record<number, number> = {
+  36: 0, // Pad 1 · Kick
+  38: 1, // Pad 2 · Snare
+  42: 2, // Pad 3 · Closed HH
+  46: 3, // Pad 4 · Open HH
+  41: 4, // Pad 5 · Low Tom
+  45: 5, // Pad 6 · Mid Tom
+  49: 6, // Pad 7 · Crash
+  51: 7, // Pad 8 · Ride
+};
+
 class ImpactAudioProcessor extends AudioWorkletProcessor {
   private engine: WasmEngine | null = null;
   private soundFontLoaded = false;
   private lastStep = -1;
+  private isRecording = false;
 
   constructor(options?: { processorOptions?: { wasmModule?: WebAssembly.Module } }) {
     super();
@@ -59,9 +71,38 @@ class ImpactAudioProcessor extends AudioWorkletProcessor {
     if (!this.engine) return;
 
     switch (data.type) {
-      case 'NOTE_ON':
-        this.engine.note_on(data.channel ?? 0, data.key, data.velocity ?? 100);
+      case 'SET_RECORDING':
+        this.isRecording = Boolean(data.recording);
         break;
+
+      case 'NOTE_ON': {
+        const channel = data.channel ?? 0;
+        const key = data.key;
+        const velocity = data.velocity ?? 100;
+        this.engine.note_on(channel, key, velocity);
+
+        // Overdub en tiempo real si el secuenciador está reproduciendo y en modo grabación
+        if (this.isRecording && this.engine.seq_is_playing()) {
+          const padIdx = DRUM_NOTE_TO_PAD[key];
+          if (padIdx !== undefined) {
+            const currentStep = this.engine.seq_get_current_step();
+            const pattern = this.getFlatPatternGrid();
+            // Si el paso no está activo, activarlo y enviar actualización del patrón
+            if (pattern[padIdx][currentStep] === 0) {
+              const active = this.engine.seq_toggle_step(padIdx, currentStep);
+              const updatedPattern = this.getFlatPatternGrid();
+              this.port.postMessage({
+                type: 'SEQ_PATTERN_UPDATED',
+                pattern: updatedPattern,
+                padIdx,
+                stepIdx: currentStep,
+                active,
+              });
+            }
+          }
+        }
+        break;
+      }
 
       case 'NOTE_OFF':
         this.engine.note_off(data.channel ?? 0, data.key);
@@ -152,6 +193,7 @@ class ImpactAudioProcessor extends AudioWorkletProcessor {
       case 'SEQ_STOP':
         this.engine.seq_stop();
         this.lastStep = -1;
+        this.isRecording = false;
         break;
 
       case 'SEQ_TOGGLE_PLAY': {

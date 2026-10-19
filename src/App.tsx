@@ -86,11 +86,13 @@ export const App: React.FC = () => {
     if (!nextPlaying) {
       audioBridge.noteOffAll(false);
       setIsRecording(false);
+      audioBridge.seqSetRecording(false);
     }
   };
 
   const handleStop = () => {
     audioBridge.seqStop();
+    audioBridge.seqSetRecording(false);
     setIsPlaying(false);
     setIsRecording(false);
     setCurrentBeat(0);
@@ -99,8 +101,28 @@ export const App: React.FC = () => {
     setSequencerState((prev) => ({ ...prev, isPlaying: false, isPaused: false, currentStep: 0 }));
   };
 
-  const handleToggleRecord = () => {
-    setIsRecording((prev) => !prev);
+  const handleToggleRecord = async () => {
+    if (!currentSoundfont) {
+      setIsInstrumentModalOpen(true);
+      return;
+    }
+    if (!isAudioStarted) {
+      await audioBridge.initialize();
+      await audioBridge.resumeAudio();
+      audioBridge.syncArpState(arpState, bpm);
+      setIsAudioStarted(true);
+    }
+
+    const nextRecording = !isRecording;
+    setIsRecording(nextRecording);
+    audioBridge.seqSetRecording(nextRecording);
+
+    // Si se activa grabación y el secuenciador está detenido, iniciar reproducción automáticamente
+    if (nextRecording && !isPlaying) {
+      const nextPlaying = audioBridge.seqTogglePlay();
+      setIsPlaying(nextPlaying);
+      setSequencerState((prev) => ({ ...prev, isPlaying: nextPlaying, isPaused: false }));
+    }
   };
 
   const handleToggleMetronome = () => {
@@ -608,6 +630,14 @@ export const App: React.FC = () => {
     animId = requestAnimationFrame(poll);
     return () => cancelAnimationFrame(animId);
   }, [isPlaying]);
+
+  // Sincronización reactiva del patrón cuando se graba en vivo desde el hilo de audio
+  useEffect(() => {
+    const unsub = audioBridge.onPatternChange((newPattern) => {
+      setSequencerState((prev) => ({ ...prev, pattern: newPattern }));
+    });
+    return unsub;
+  }, []);
 
   const handleSequencerToggleStep = (padIdx: number, stepIdx: number) => {
     audioBridge.seqToggleStep(padIdx, stepIdx);

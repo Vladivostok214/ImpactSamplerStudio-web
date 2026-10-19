@@ -14,9 +14,11 @@ export class WebAudioBridge {
   // Cache optimista en hilo principal para respuesta sincrónica sin retardo de round-trip
   private cachedStep: number = 0;
   private cachedIsPlaying: boolean = false;
+  private cachedIsRecording: boolean = false;
   private cachedBank: 'a' | 'b' = 'a';
   private cachedPattern: number[][] = Array.from({ length: 8 }, () => new Array(32).fill(0));
   private stepListeners: Set<(step: number) => void> = new Set();
+  private patternListeners: Set<(pattern: number[][]) => void> = new Set();
   private soundFontLoadResolvers: Map<string, { resolve: () => void; reject: (err: Error) => void }> = new Map();
 
   private constructor() {}
@@ -85,6 +87,13 @@ export class WebAudioBridge {
             case 'SEQ_PATTERN_UPDATED':
               if (data.pattern) {
                 this.cachedPattern = data.pattern;
+                this.patternListeners.forEach((listener) => {
+                  try {
+                    listener(this.cachedPattern);
+                  } catch {
+                    // Prevenir que errores en UI interrumpan otros listeners
+                  }
+                });
               }
               break;
 
@@ -292,8 +301,18 @@ export class WebAudioBridge {
 
   public seqStop(): void {
     this.cachedIsPlaying = false;
+    this.cachedIsRecording = false;
     this.cachedStep = 0;
     this.workletNode?.port.postMessage({ type: 'SEQ_STOP' });
+  }
+
+  public seqSetRecording(recording: boolean): void {
+    this.cachedIsRecording = recording;
+    this.workletNode?.port.postMessage({ type: 'SET_RECORDING', recording });
+  }
+
+  public seqIsRecording(): boolean {
+    return this.cachedIsRecording;
   }
 
   public seqTogglePlay(): boolean {
@@ -356,6 +375,11 @@ export class WebAudioBridge {
   public onStepChange(callback: (step: number) => void): () => void {
     this.stepListeners.add(callback);
     return () => this.stepListeners.delete(callback);
+  }
+
+  public onPatternChange(callback: (pattern: number[][]) => void): () => void {
+    this.patternListeners.add(callback);
+    return () => this.patternListeners.delete(callback);
   }
 
   public getSoundFontName(): string {
