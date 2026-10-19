@@ -20,6 +20,35 @@ pub struct WasmEngine {
     arpeggiator: Arpeggiator,
     sequencer: StepSequencer,
     bpm: f32,
+    pad_faders: [u8; NUM_PADS],
+}
+
+impl WasmEngine {
+    #[inline]
+    fn fader_to_cc7(fader: u8) -> i32 {
+        if fader == 0 {
+            0
+        } else if fader <= 64 {
+            // De 1..64 mapea linealmente a CC7 2..105 (64 = volumen nominal)
+            (2.0 + ((fader as f32) / 64.0) * 103.0).round() as i32
+        } else {
+            // De 65..127 mapea a CC7 105..127 (+3.3 dB de empuje por encima del nominal)
+            (105.0 + (((fader - 64) as f32) / 63.0) * 22.0).round().clamp(0.0, 127.0) as i32
+        }
+    }
+
+    #[inline]
+    fn scale_pad_velocity(fader: u8, velocity: i32) -> i32 {
+        if fader == 0 || velocity <= 0 {
+            return 0;
+        }
+        let scale = if fader <= 64 {
+            (fader as f32) / 64.0
+        } else {
+            1.0 + (((fader - 64) as f32) / 63.0) * 0.25
+        };
+        ((velocity as f32) * scale).round().clamp(1.0, 127.0) as i32
+    }
 }
 
 #[wasm_bindgen]
@@ -33,6 +62,7 @@ impl WasmEngine {
             arpeggiator: Arpeggiator::new(sample_rate),
             sequencer: StepSequencer::new(sample_rate),
             bpm: 120.0,
+            pad_faders: [64; NUM_PADS],
         }
     }
 
@@ -40,7 +70,11 @@ impl WasmEngine {
         let mut cursor = Cursor::new(sf2_bytes);
         let sf = Arc::new(SoundFont::new(&mut cursor).map_err(|e| JsValue::from_str(&e.to_string()))?);
         let settings = SynthesizerSettings::new(self.sample_rate as i32);
-        let synth = Synthesizer::new(&sf, &settings).map_err(|e| JsValue::from_str(&e.to_string()))?;
+        let mut synth = Synthesizer::new(&sf, &settings).map_err(|e| JsValue::from_str(&e.to_string()))?;
+        for pad_idx in 0..NUM_PADS {
+            let cc7 = Self::fader_to_cc7(self.pad_faders[pad_idx]);
+            synth.process_midi_message(pad_idx as i32, 0xB0, 7, cc7);
+        }
         self.synthesizer = Some(synth);
         Ok(())
     }
@@ -120,6 +154,54 @@ impl WasmEngine {
         }
     }
 
+    pub fn pad_note_on(&mut self, pad_idx: usize, key: i32, velocity: i32) {
+        if pad_idx >= NUM_PADS {
+            return;
+        }
+        let fader = self.pad_faders[pad_idx];
+        let scaled_vel = Self::scale_pad_velocity(fader, velocity);
+        if scaled_vel <= 0 {
+            return;
+        }
+        if let Some(synth) = &mut self.synthesizer {
+            let ch = pad_idx as i32;
+            let cc7 = Self::fader_to_cc7(fader);
+            synth.process_midi_message(ch, 0xB0, 7, cc7);
+            synth.note_off(ch, key);
+            synth.note_on(ch, key, scaled_vel);
+            synth.note_off(9, key);
+            synth.note_on(9, key, scaled_vel);
+        }
+    }
+
+    pub fn pad_note_off(&mut self, pad_idx: usize, key: i32) {
+        if pad_idx >= NUM_PADS {
+            return;
+        }
+        if let Some(synth) = &mut self.synthesizer {
+            synth.note_off(pad_idx as i32, key);
+            synth.note_off(9, key);
+        }
+    }
+
+    pub fn set_pad_fader(&mut self, pad_idx: usize, val_7bit: f32) {
+        if pad_idx >= NUM_PADS {
+            return;
+        }
+        let val = val_7bit.round().clamp(0.0, 127.0) as u8;
+        self.pad_faders[pad_idx] = val;
+        if let Some(synth) = &mut self.synthesizer {
+            let ch = pad_idx as i32;
+            let cc7 = Self::fader_to_cc7(val);
+            synth.process_midi_message(ch, 0xB0, 7, cc7);
+            if val == 0 {
+                let note = sequencer::DEFAULT_PAD_NOTES[pad_idx] as i32;
+                synth.note_off(ch, note);
+                synth.note_off(9, note);
+            }
+        }
+    }
+
     pub fn note_off_all(&mut self, immediate: bool) {
         self.arpeggiator.reset();
         if let Some(synth) = &mut self.synthesizer {
@@ -146,9 +228,17 @@ impl WasmEngine {
     pub fn set_program(&mut self, channel: i32, patch: i32, bank: i32) {
         if let Some(synth) = &mut self.synthesizer {
             synth.note_off_all(false);
-            synth.process_midi_message(channel, 0xB0, 0, bank);
-            synth.process_midi_message(channel, 0xB0, 32, 0);
-            synth.process_midi_message(channel, 0xC0, patch, 0);
+            if channel == 0 {
+                for ch in 0..NUM_PADS as i32 {
+                    synth.process_midi_message(ch, 0xB0, 0, bank);
+                    synth.process_midi_message(ch, 0xB0, 32, 0);
+                    synth.process_midi_message(ch, 0xC0, patch, 0);
+                }
+            } else {
+                synth.process_midi_message(channel, 0xB0, 0, bank);
+                synth.process_midi_message(channel, 0xB0, 32, 0);
+                synth.process_midi_message(channel, 0xC0, patch, 0);
+            }
         }
     }
 
@@ -177,9 +267,9 @@ impl WasmEngine {
     pub fn seq_stop(&mut self) {
         self.sequencer.stop();
         if let Some(synth) = &mut self.synthesizer {
-            for note in sequencer::DEFAULT_PAD_NOTES {
-                synth.note_off(9, note as i32);
-                synth.note_off(0, note as i32);
+            for (pad_idx, note) in sequencer::DEFAULT_PAD_NOTES.iter().enumerate() {
+                synth.note_off(pad_idx as i32, *note as i32);
+                synth.note_off(9, *note as i32);
             }
         }
     }
@@ -188,9 +278,9 @@ impl WasmEngine {
         let is_playing = self.sequencer.toggle_play();
         if !is_playing {
             if let Some(synth) = &mut self.synthesizer {
-                for note in sequencer::DEFAULT_PAD_NOTES {
-                    synth.note_off(9, note as i32);
-                    synth.note_off(0, note as i32);
+                for (pad_idx, note) in sequencer::DEFAULT_PAD_NOTES.iter().enumerate() {
+                    synth.note_off(pad_idx as i32, *note as i32);
+                    synth.note_off(9, *note as i32);
                 }
             }
         }
@@ -265,11 +355,16 @@ impl WasmEngine {
                         // 1. Avance del secuenciador rítmico en cada sample
                         if let Some((_step, triggers, count)) = self.sequencer.advance_sample() {
                             for i in 0..count {
-                                let (note, vel) = triggers[i];
+                                let (pad_idx, note, vel) = triggers[i];
+                                let ch = (pad_idx % NUM_PADS) as i32;
+                                let fader = self.pad_faders[pad_idx % NUM_PADS];
+                                let scaled_vel = Self::scale_pad_velocity(fader, vel as i32);
+                                synth.note_off(ch, note as i32);
                                 synth.note_off(9, note as i32);
-                                synth.note_on(9, note as i32, vel as i32);
-                                synth.note_off(0, note as i32);
-                                synth.note_on(0, note as i32, vel as i32);
+                                if scaled_vel > 0 {
+                                    synth.note_on(ch, note as i32, scaled_vel);
+                                    synth.note_on(9, note as i32, scaled_vel);
+                                }
                             }
                         }
 

@@ -11,6 +11,8 @@ export class WasmEngine {
     note_off(channel: number, key: number): void;
     note_off_all(immediate: boolean): void;
     note_on(channel: number, key: number, velocity: number): void;
+    pad_note_off(pad_idx: number, key: number): void;
+    pad_note_on(pad_idx: number, key: number, velocity: number): void;
     render(left: Float32Array, right: Float32Array): void;
     seq_clear_all(): void;
     seq_clear_track(pad_idx: number): void;
@@ -36,6 +38,7 @@ export class WasmEngine {
     set_knob(knob_idx: number, val_7bit: number): void;
     set_master_fader(val_7bit: number): void;
     set_mod_wheel(channel: number, value_7bit: number): void;
+    set_pad_fader(pad_idx: number, val_7bit: number): void;
     set_pitch_bend(channel: number, bend: number): void;
     set_program(channel: number, patch: number, bank: number): void;
     update_arp_params(enabled: boolean, hold: boolean, mode_str: string, rate_str: string, octaves: number, bpm: number): void;
@@ -53,6 +56,8 @@ export interface InitOutput {
     readonly wasmengine_note_off: (a: number, b: number, c: number) => void;
     readonly wasmengine_note_off_all: (a: number, b: number) => void;
     readonly wasmengine_note_on: (a: number, b: number, c: number, d: number) => void;
+    readonly wasmengine_pad_note_off: (a: number, b: number, c: number) => void;
+    readonly wasmengine_pad_note_on: (a: number, b: number, c: number, d: number) => void;
     readonly wasmengine_render: (a: number, b: number, c: number, d: any, e: number, f: number, g: any) => void;
     readonly wasmengine_seq_clear_all: (a: number) => void;
     readonly wasmengine_seq_clear_track: (a: number, b: number) => void;
@@ -78,6 +83,7 @@ export interface InitOutput {
     readonly wasmengine_set_knob: (a: number, b: number, c: number) => void;
     readonly wasmengine_set_master_fader: (a: number, b: number) => void;
     readonly wasmengine_set_mod_wheel: (a: number, b: number, c: number) => void;
+    readonly wasmengine_set_pad_fader: (a: number, b: number, c: number) => void;
     readonly wasmengine_set_pitch_bend: (a: number, b: number, c: number) => void;
     readonly wasmengine_set_program: (a: number, b: number, c: number, d: number) => void;
     readonly wasmengine_update_arp_params: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number) => void;

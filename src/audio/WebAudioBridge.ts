@@ -273,6 +273,11 @@ export class WebAudioBridge {
     this.workletNode.port.postMessage({ type: 'SET_KNOB', index: knobIndex, value: value7bit });
   }
 
+  public setPadFader(padIndex: number, value7bit: number): void {
+    if (!this.workletNode) return;
+    this.workletNode.port.postMessage({ type: 'SET_PAD_FADER', index: padIndex, value: value7bit });
+  }
+
   public setMasterFader(value7bit: number): void {
     if (!this.workletNode) return;
     this.workletNode.port.postMessage({ type: 'SET_MASTER_FADER', value: value7bit });

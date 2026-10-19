@@ -67,6 +67,21 @@ export class WasmEngine {
         wasm.wasmengine_note_on(this.__wbg_ptr, channel, key, velocity);
     }
     /**
+     * @param {number} pad_idx
+     * @param {number} key
+     */
+    pad_note_off(pad_idx, key) {
+        wasm.wasmengine_pad_note_off(this.__wbg_ptr, pad_idx, key);
+    }
+    /**
+     * @param {number} pad_idx
+     * @param {number} key
+     * @param {number} velocity
+     */
+    pad_note_on(pad_idx, key, velocity) {
+        wasm.wasmengine_pad_note_on(this.__wbg_ptr, pad_idx, key, velocity);
+    }
+    /**
      * @param {Float32Array} left
      * @param {Float32Array} right
      */
@@ -241,6 +256,13 @@ export class WasmEngine {
      */
     set_mod_wheel(channel, value_7bit) {
         wasm.wasmengine_set_mod_wheel(this.__wbg_ptr, channel, value_7bit);
+    }
+    /**
+     * @param {number} pad_idx
+     * @param {number} val_7bit
+     */
+    set_pad_fader(pad_idx, val_7bit) {
+        wasm.wasmengine_set_pad_fader(this.__wbg_ptr, pad_idx, val_7bit);
     }
     /**
      * @param {number} channel

@@ -429,9 +429,9 @@ impl StepSequencer {
     }
 
     /// Avanza un frame de audio sample-accurate.
-    /// Retorna Some((nuevo_paso_visual, triggers_notas_pad, cantidad)) si hubo disparos de notas en este frame.
+    /// Retorna Some((nuevo_paso_visual, triggers_pad_nota_vel, cantidad)) si hubo disparos de notas en este frame.
     #[inline]
-    pub fn advance_sample(&mut self) -> Option<(usize, [(u8, u8); NUM_PADS], usize)> {
+    pub fn advance_sample(&mut self) -> Option<(usize, [(usize, u8, u8); NUM_PADS], usize)> {
         if !self.is_playing {
             return None;
         }
@@ -444,14 +444,14 @@ impl StepSequencer {
             self.update_current_step();
 
             let mut count = 0;
-            let mut triggers = [(0u8, 0u8); NUM_PADS];
+            let mut triggers = [(0usize, 0u8, 0u8); NUM_PADS];
             let bank = self.get_active_bank();
             for pad_idx in 0..NUM_PADS {
                 let track = &bank.tracks[pad_idx];
                 for i in 0..track.count {
                     if track.events[i].tick == 0 {
                         let note = DEFAULT_PAD_NOTES[pad_idx];
-                        triggers[count] = (note, track.events[i].velocity);
+                        triggers[count] = (pad_idx, note, track.events[i].velocity);
                         count += 1;
                         break;
                     }
@@ -472,7 +472,7 @@ impl StepSequencer {
             let cur_tick = self.current_tick;
             let mut suppress = self.suppress_next_tick;
             let mut count = 0;
-            let mut triggers = [(0u8, 0u8); NUM_PADS];
+            let mut triggers = [(0usize, 0u8, 0u8); NUM_PADS];
             {
                 let bank = self.get_active_bank();
                 for pad_idx in 0..NUM_PADS {
@@ -483,7 +483,7 @@ impl StepSequencer {
                                 suppress[pad_idx] = None;
                             } else {
                                 let note = DEFAULT_PAD_NOTES[pad_idx];
-                                triggers[count] = (note, track.events[i].velocity);
+                                triggers[count] = (pad_idx, note, track.events[i].velocity);
                                 count += 1;
                             }
                             break;

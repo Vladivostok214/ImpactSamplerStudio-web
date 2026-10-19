@@ -90,17 +90,23 @@ class ImpactAudioProcessor extends AudioWorkletProcessor {
         const channel = data.channel ?? 0;
         const key = data.key;
         const velocity = data.velocity ?? 100;
+        const padIdx = typeof data.padIdx === 'number' ? data.padIdx : DRUM_NOTE_TO_PAD[key];
+        const isDrumTarget = data.target === 'drum' || channel === 9;
 
-        if (data.target === 'drum' && this.drumLoaded && this.drumEngine) {
-          this.drumEngine.note_on(channel, key, velocity);
+        if (isDrumTarget) {
+          const targetEngine = this.drumLoaded && this.drumEngine ? this.drumEngine : this.engine;
+          if (padIdx !== undefined && padIdx >= 0 && padIdx < 8) {
+            targetEngine.pad_note_on(padIdx, key, velocity);
+          } else {
+            targetEngine.note_on(channel, key, velocity);
+          }
         } else {
           this.engine.note_on(channel, key, velocity);
         }
 
         // Overdub en tiempo real si el secuenciador está reproduciendo y en modo grabación
         if (this.isRecording && seqEngine.seq_is_playing()) {
-          const padIdx = DRUM_NOTE_TO_PAD[key];
-          if (padIdx !== undefined) {
+          if (padIdx !== undefined && padIdx >= 0 && padIdx < 8) {
             const latencyMs = typeof data.latencyMs === 'number' ? data.latencyMs : 20.0;
             const recordedStep = seqEngine.seq_record_hit(padIdx, velocity, latencyMs);
             if (recordedStep >= 0) {
@@ -116,13 +122,24 @@ class ImpactAudioProcessor extends AudioWorkletProcessor {
         break;
       }
 
-      case 'NOTE_OFF':
-        if (data.target === 'drum' && this.drumLoaded && this.drumEngine) {
-          this.drumEngine.note_off(data.channel ?? 0, data.key);
+      case 'NOTE_OFF': {
+        const channel = data.channel ?? 0;
+        const key = data.key;
+        const padIdx = typeof data.padIdx === 'number' ? data.padIdx : DRUM_NOTE_TO_PAD[key];
+        const isDrumTarget = data.target === 'drum' || channel === 9;
+
+        if (isDrumTarget) {
+          const targetEngine = this.drumLoaded && this.drumEngine ? this.drumEngine : this.engine;
+          if (padIdx !== undefined && padIdx >= 0 && padIdx < 8) {
+            targetEngine.pad_note_off(padIdx, key);
+          } else {
+            targetEngine.note_off(channel, key);
+          }
         } else {
-          this.engine.note_off(data.channel ?? 0, data.key);
+          this.engine.note_off(channel, key);
         }
         break;
+      }
 
       case 'NOTE_OFF_ALL':
         this.engine.note_off_all(data.immediate ?? false);
@@ -152,6 +169,11 @@ class ImpactAudioProcessor extends AudioWorkletProcessor {
       case 'SET_KNOB':
         this.engine.set_knob(data.index, data.value);
         this.drumEngine?.set_knob(data.index, data.value);
+        break;
+
+      case 'SET_PAD_FADER':
+        this.engine.set_pad_fader(data.index, data.value);
+        this.drumEngine?.set_pad_fader(data.index, data.value);
         break;
 
       case 'SET_MASTER_FADER':

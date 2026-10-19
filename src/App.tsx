@@ -564,6 +564,8 @@ export const App: React.FC = () => {
       if (matchedFaderIdx !== null) {
         if (matchedFaderIdx === 8) {
           audioBridge.setMasterFader(value);
+        } else if (matchedFaderIdx >= 0 && matchedFaderIdx < 8) {
+          audioBridge.setPadFader(matchedFaderIdx, value);
         }
         pendingFadersRef.current[matchedFaderIdx] = value;
         scheduleUiFlush();
@@ -1405,7 +1407,7 @@ export const App: React.FC = () => {
     audioBridge.setProgram(patch, bank);
   };
 
-  const handleQwertyNoteOn = async (note: number, velocity: number) => {
+  const handleQwertyNoteOn = async (note: number, velocity: number, isPad?: boolean) => {
     if (!currentSoundfont) {
       setIsInstrumentModalOpen(true);
       return;
@@ -1417,15 +1419,27 @@ export const App: React.FC = () => {
       audioBridge.syncArpState(arpState, bpm);
       setIsAudioStarted(true);
     }
-    const target = currentSoundfont.filename.toLowerCase().includes('rx7') ? 'drum' : 'melodic';
+    const target = isPad || currentSoundfont.filename.toLowerCase().includes('rx7') ? 'drum' : 'melodic';
     audioBridge.noteOn(note, velocity, 0, target);
-    setVisualKeyActive(note, true);
+    if (isPad) {
+      const drumNotes = [36, 38, 42, 46, 41, 45, 49, 51];
+      const padIdx = drumNotes.indexOf(note);
+      if (padIdx >= 0) setVisualPadActive(padIdx, true);
+    } else {
+      setVisualKeyActive(note, true);
+    }
   };
 
-  const handleQwertyNoteOff = (note: number) => {
-    const target = currentSoundfont?.filename.toLowerCase().includes('rx7') ? 'drum' : 'melodic';
+  const handleQwertyNoteOff = (note: number, isPad?: boolean) => {
+    const target = isPad || currentSoundfont?.filename.toLowerCase().includes('rx7') ? 'drum' : 'melodic';
     audioBridge.noteOff(note, 0, target);
-    setVisualKeyActive(note, false);
+    if (isPad) {
+      const drumNotes = [36, 38, 42, 46, 41, 45, 49, 51];
+      const padIdx = drumNotes.indexOf(note);
+      if (padIdx >= 0) setVisualPadActive(padIdx, false);
+    } else {
+      setVisualKeyActive(note, false);
+    }
   };
 
   const { octaveOffset } = useQwertyKeyboard({
@@ -1439,6 +1453,8 @@ export const App: React.FC = () => {
   const handleChangeFader = (index: number, value: number) => {
     if (index === 8) {
       audioBridge.setMasterFader(value);
+    } else if (index >= 0 && index < 8) {
+      audioBridge.setPadFader(index, value);
     }
     pendingFadersRef.current[index] = value;
     scheduleUiFlush();

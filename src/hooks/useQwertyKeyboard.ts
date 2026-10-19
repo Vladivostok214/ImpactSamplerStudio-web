@@ -50,8 +50,8 @@ export interface UseQwertyKeyboardOptions {
   enabled: boolean;
   velocity?: number;
   keyRange?: KeyRange;
-  onNoteOn: (note: number, velocity: number) => void;
-  onNoteOff: (note: number) => void;
+  onNoteOn: (note: number, velocity: number, isPad?: boolean) => void;
+  onNoteOff: (note: number, isPad?: boolean) => void;
   onTogglePlay?: () => void;
   onStop?: () => void;
 }
@@ -115,7 +115,7 @@ export function useQwertyKeyboard({
     if (activeKeysRef.current.size === 0) return;
 
     activeKeysRef.current.forEach((entry) => {
-      callbacksRef.current.onNoteOff(entry.note);
+      callbacksRef.current.onNoteOff(entry.note, entry.type === 'pad');
     });
 
     activeKeysRef.current.clear();
@@ -175,7 +175,7 @@ export function useQwertyKeyboard({
       if (e.code in QWERTY_PAD_NOTES) {
         const padNote = QWERTY_PAD_NOTES[e.code];
         activeKeysRef.current.set(e.code, { type: 'pad', note: padNote });
-        callbacksRef.current.onNoteOn(padNote, stateRef.current.velocity);
+        callbacksRef.current.onNoteOn(padNote, stateRef.current.velocity, true);
         e.preventDefault();
         return;
       }
@@ -199,7 +199,7 @@ export function useQwertyKeyboard({
         }
 
         activeKeysRef.current.set(e.code, { type: 'note', note });
-        callbacksRef.current.onNoteOn(note, stateRef.current.velocity);
+        callbacksRef.current.onNoteOn(note, stateRef.current.velocity, false);
         e.preventDefault();
         return;
       }
@@ -212,7 +212,7 @@ export function useQwertyKeyboard({
       }
 
       activeKeysRef.current.delete(e.code);
-      callbacksRef.current.onNoteOff(activeEntry.note);
+      callbacksRef.current.onNoteOff(activeEntry.note, activeEntry.type === 'pad');
       e.preventDefault();
     };
 
