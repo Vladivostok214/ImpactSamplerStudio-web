@@ -280,9 +280,9 @@ export const StepSequencer: React.FC<StepSequencerProps> = React.memo(({
     <div className="w-full flex flex-col bg-[#050507] border-t border-white/[0.08] select-none relative z-40">
       {/* 1. Bahía de Secuenciación Rítmica TR-Style (Visible únicamente en modo SEQ) */}
       {isSeqOpen && (
-        <div className="p-1.5 sm:p-2.5 lg:p-3.5 flex flex-col gap-1 lg:gap-1.5 animate-in fade-in duration-150">
+        <div className="p-1.5 sm:p-2 lg:p-3.5 flex flex-col gap-1 lg:gap-1.5 animate-in fade-in duration-150">
           {/* Cinta Superior de Control del Secuenciador (Kit, Banco, Grilla, Páginas, Cuantización y Edición) */}
-          <div className="flex items-center justify-between pb-1.5 lg:pb-2 mb-0.5 lg:mb-1 border-b border-white/[0.08] flex-wrap sm:flex-nowrap gap-1.5 lg:gap-2 text-[9px] lg:text-[10px] font-mono select-none">
+          <div className="flex items-center justify-between pb-1 lg:pb-2 mb-0.5 lg:mb-1 border-b border-white/[0.08] flex-wrap sm:flex-nowrap gap-1.5 lg:gap-2 text-[9px] lg:text-[10px] font-mono select-none">
             {/* Izquierda: Kit + Banco A/B */}
             <div className="flex items-center gap-1.5 lg:gap-2 shrink-0">
               {/* Selector de Kit con Menú Desplegable Flotante */}
@@ -294,7 +294,7 @@ export const StepSequencer: React.FC<StepSequencerProps> = React.memo(({
                   title="Kit de Batería"
                 >
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_#10b981]" />
-                  <span className="text-[9.5px] uppercase font-bold tracking-wider text-zinc-400">KIT:</span>
+                  <span className="text-[8.5px] lg:text-[9.5px] uppercase font-bold tracking-wider text-zinc-400">KIT:</span>
                   <span className="font-bold text-zinc-100 group-hover:text-emerald-400 transition max-w-[90px] truncate">
                     {padEngineMode === "drumKitSf2" ? "Yamaha RX7" : "Custom WAV"}
                   </span>
@@ -361,7 +361,7 @@ export const StepSequencer: React.FC<StepSequencerProps> = React.memo(({
                         ? `Banco A/B: ${bankMapped ? `Asignado (${bankMapped})` : "Sin asignar"}`
                         : `Cambiar Banco (Actual: ${currentBank.toUpperCase()})`
                     }
-                    className={`h-7 px-2.5 rounded-md text-[9.5px] font-mono font-bold tracking-wider border transition-all active:scale-95 shadow-[inset_0_1px_0_rgba(255,255,255,0.1),0_2px_4px_rgba(0,0,0,0.5)] cursor-pointer flex items-center gap-1.5 ${
+                    className={`h-6 lg:h-7 px-2 lg:px-2.5 rounded-md text-[8.5px] lg:text-[9.5px] font-mono font-bold tracking-wider border transition-all active:scale-95 shadow-[inset_0_1px_0_rgba(255,255,255,0.1),0_2px_4px_rgba(0,0,0,0.5)] cursor-pointer flex items-center gap-1 lg:gap-1.5 ${
                       isBankSelected
                         ? "border-2 border-amber-400 bg-amber-950/40 shadow-[0_0_15px_rgba(245,158,11,0.8)] ring-2 ring-amber-400/60 animate-pulse text-amber-200"
                         : isMidiLearnActive
@@ -371,7 +371,7 @@ export const StepSequencer: React.FC<StepSequencerProps> = React.memo(({
                         : "bg-cyan-950/40 text-cyan-200 border-cyan-500/60 shadow-[0_0_8px_rgba(6,182,212,0.4)]"
                     }`}
                   >
-                    <span className="text-zinc-400 font-semibold text-[9px] tracking-wider">BANK</span>
+                    <span className="text-zinc-400 font-semibold text-[8.5px] lg:text-[9px] tracking-wider">BANK</span>
                     <span>{currentBank.toUpperCase()}</span>
                   </button>
                 );
@@ -379,7 +379,7 @@ export const StepSequencer: React.FC<StepSequencerProps> = React.memo(({
             </div>
 
             {/* Derecha: Resolución Grid + Páginas 1/32 + Q + Separador + Cápsula de Edición */}
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="flex items-center gap-1.5 lg:gap-2 shrink-0">
               {/* Selector de Resolución con Menú Desplegable Flotante */}
               {(() => {
                 const isGridSelected =
@@ -403,7 +403,7 @@ export const StepSequencer: React.FC<StepSequencerProps> = React.memo(({
                           ? `Resolución Grilla: ${gridMapped ? `Asignado (${gridMapped})` : "Sin asignar"}`
                           : "Seleccionar Resolución de Grilla"
                       }
-                      className={`h-7 px-2.5 rounded-md text-[9.5px] font-mono font-bold flex items-center gap-1.5 shadow-[inset_0_1px_2px_rgba(0,0,0,0.8)] cursor-pointer transition select-none ${
+                      className={`h-6 lg:h-7 px-2 lg:px-2.5 rounded-md text-[8.5px] lg:text-[9.5px] font-mono font-bold flex items-center gap-1 lg:gap-1.5 shadow-[inset_0_1px_2px_rgba(0,0,0,0.8)] cursor-pointer transition select-none ${
                         isGridSelected
                           ? "border-2 border-amber-400 bg-amber-950/40 shadow-[0_0_15px_rgba(245,158,11,0.8)] ring-2 ring-amber-400/60 animate-pulse text-amber-200"
                           : isMidiLearnActive
@@ -411,7 +411,7 @@ export const StepSequencer: React.FC<StepSequencerProps> = React.memo(({
                           : "bg-[#040406] hover:bg-[#121318] border border-white/15 hover:border-emerald-500/60 text-emerald-400"
                       }`}
                     >
-                      <span className="text-zinc-400 text-[9px] font-semibold tracking-wider">GRID:</span>
+                      <span className="text-zinc-400 text-[8.5px] lg:text-[9px] font-semibold tracking-wider">GRID:</span>
                       <span>{resolution === "eighth" ? "1/8" : resolution === "sixteenth" ? "1/16" : "1/32"}</span>
                       <ChevronDown
                         size={11}
@@ -509,7 +509,7 @@ export const StepSequencer: React.FC<StepSequencerProps> = React.memo(({
                         type="button"
                         onClick={() => !isMidiLearnActive && setActivePage(0)}
                         title={isMidiLearnActive ? undefined : "Página 1 (Pasos 1-16)"}
-                        className={`w-6 h-6 rounded font-mono text-[9px] font-bold transition-all cursor-pointer flex items-center justify-center relative ${
+                        className={`w-5 h-5 lg:w-6 lg:h-6 rounded font-mono text-[8.5px] lg:text-[9px] font-bold transition-all cursor-pointer flex items-center justify-center relative ${
                           activePage === 0
                             ? "bg-emerald-500/30 text-emerald-300 border border-emerald-500/50 shadow-[0_0_8px_rgba(16,185,129,0.3)]"
                             : "text-zinc-400 hover:text-white"
@@ -524,7 +524,7 @@ export const StepSequencer: React.FC<StepSequencerProps> = React.memo(({
                         type="button"
                         onClick={() => !isMidiLearnActive && setActivePage(1)}
                         title={isMidiLearnActive ? undefined : "Página 2 (Pasos 17-32)"}
-                        className={`w-6 h-6 rounded font-mono text-[9px] font-bold transition-all cursor-pointer flex items-center justify-center relative ${
+                        className={`w-5 h-5 lg:w-6 lg:h-6 rounded font-mono text-[8.5px] lg:text-[9px] font-bold transition-all cursor-pointer flex items-center justify-center relative ${
                           activePage === 1
                             ? "bg-emerald-500/30 text-emerald-300 border border-emerald-500/50 shadow-[0_0_8px_rgba(16,185,129,0.3)]"
                             : "text-zinc-400 hover:text-white"
@@ -546,7 +546,7 @@ export const StepSequencer: React.FC<StepSequencerProps> = React.memo(({
                   type="button"
                   onClick={() => setIsQMenuOpen((prev) => !prev)}
                   title={`Cuantización de Entrada: ${quantizeMode.toUpperCase()} (${Math.round(quantizeStrength * 100)}%)`}
-                  className={`h-7 w-7 rounded-md text-[10px] font-mono font-bold border transition-all flex items-center justify-center relative active:scale-95 cursor-pointer select-none ${
+                  className={`h-6 w-6 lg:h-7 lg:w-7 rounded-md text-[9px] lg:text-[10px] font-mono font-bold border transition-all flex items-center justify-center relative active:scale-95 cursor-pointer select-none ${
                     quantizeMode !== "off"
                       ? "bg-cyan-950/40 text-cyan-300 border-cyan-500/60 shadow-[0_0_8px_rgba(6,182,212,0.4)]"
                       : "bg-white/[0.03] text-zinc-500 border-white/10 hover:text-white"
@@ -554,7 +554,7 @@ export const StepSequencer: React.FC<StepSequencerProps> = React.memo(({
                 >
                   <span>Q</span>
                   {quantizeMode !== "off" && (
-                    <span className="absolute top-1 right-1 w-1 h-1 rounded-full bg-cyan-400 shadow-[0_0_4px_#22d3ee]" />
+                    <span className="absolute top-0.5 right-0.5 lg:top-1 lg:right-1 w-1 h-1 rounded-full bg-cyan-400 shadow-[0_0_4px_#22d3ee]" />
                   )}
                 </button>
 
@@ -618,7 +618,7 @@ export const StepSequencer: React.FC<StepSequencerProps> = React.memo(({
               <div className="h-4 w-[1px] bg-white/10 mx-0.5" />
 
               {/* Cápsula Unificada de Edición del Secuenciador [ UNDO | CLR TRK | 🗑 ] */}
-              <div className="flex items-stretch h-7 rounded-md bg-[#18191e] border border-white/15 shadow-[inset_0_1px_0_rgba(255,255,255,0.06),0_2px_4px_rgba(0,0,0,0.5)] overflow-hidden">
+              <div className="flex items-stretch h-6 lg:h-7 rounded-md bg-[#18191e] border border-white/15 shadow-[inset_0_1px_0_rgba(255,255,255,0.06),0_2px_4px_rgba(0,0,0,0.5)] overflow-hidden">
                 {/* Deshacer (Undo) */}
                 {(() => {
                   const isSelected =
@@ -641,7 +641,7 @@ export const StepSequencer: React.FC<StepSequencerProps> = React.memo(({
                           ? `Deshacer (Undo): ${mapped ? `Asignado (${mapped})` : "Sin asignar"}`
                           : "Deshacer (Undo)"
                       }
-                      className={`px-2 h-full flex items-center justify-center gap-1.5 font-mono text-[9px] font-bold uppercase tracking-wider transition-all cursor-pointer border-r border-white/10 ${
+                      className={`px-1.5 lg:px-2 h-full flex items-center justify-center gap-1 lg:gap-1.5 font-mono text-[8.5px] lg:text-[9px] font-bold uppercase tracking-wider transition-all cursor-pointer border-r border-white/10 ${
                         isSelected
                           ? "bg-amber-950/40 text-amber-200 shadow-[inset_0_0_12px_rgba(245,158,11,0.6)] animate-pulse"
                           : isMidiLearnActive
@@ -649,7 +649,7 @@ export const StepSequencer: React.FC<StepSequencerProps> = React.memo(({
                           : "text-zinc-300 hover:text-white hover:bg-white/[0.06] active:bg-white/[0.12]"
                       }`}
                     >
-                      <RotateCcw size={11} className="text-cyan-400 shrink-0" />
+                      <RotateCcw size={10} className="text-cyan-400 shrink-0" />
                       <span>UNDO</span>
                     </button>
                   );
@@ -677,7 +677,7 @@ export const StepSequencer: React.FC<StepSequencerProps> = React.memo(({
                           ? `Borrar Pista: ${mapped ? `Asignado (${mapped})` : "Sin asignar"}`
                           : `Borrar Notas de la Pista Seleccionada (Pad ${selectedTrack + 1})`
                       }
-                      className={`px-2 h-full flex items-center justify-center gap-1.5 font-mono text-[9px] font-bold uppercase tracking-wider transition-all cursor-pointer border-r border-white/10 ${
+                      className={`px-1.5 lg:px-2 h-full flex items-center justify-center gap-1 lg:gap-1.5 font-mono text-[8.5px] lg:text-[9px] font-bold uppercase tracking-wider transition-all cursor-pointer border-r border-white/10 ${
                         isSelected
                           ? "bg-amber-950/40 text-amber-200 shadow-[inset_0_0_12px_rgba(245,158,11,0.6)] animate-pulse"
                           : isMidiLearnActive
@@ -686,7 +686,7 @@ export const StepSequencer: React.FC<StepSequencerProps> = React.memo(({
                       }`}
                     >
                       <Eraser
-                        size={11}
+                        size={10}
                         className={
                           isSelected
                             ? "text-amber-200 shrink-0"
@@ -722,7 +722,7 @@ export const StepSequencer: React.FC<StepSequencerProps> = React.memo(({
                           ? `Borrar Todo el Patrón: ${mapped ? `Asignado (${mapped})` : "Sin asignar"}`
                           : "Borrar Todo el Patrón"
                       }
-                      className={`w-7 h-full flex items-center justify-center transition-all cursor-pointer ${
+                      className={`w-6 lg:w-7 h-full flex items-center justify-center transition-all cursor-pointer ${
                         isSelected
                           ? "bg-amber-950/40 text-amber-200 shadow-[inset_0_0_12px_rgba(245,158,11,0.6)] animate-pulse"
                           : isMidiLearnActive
@@ -730,7 +730,7 @@ export const StepSequencer: React.FC<StepSequencerProps> = React.memo(({
                           : "text-zinc-400 hover:text-red-400 hover:bg-white/[0.06] active:bg-white/[0.12]"
                       }`}
                     >
-                      <Trash2 size={11} className="shrink-0" />
+                      <Trash2 size={10} className="shrink-0" />
                     </button>
                   );
                 })()}
@@ -739,7 +739,7 @@ export const StepSequencer: React.FC<StepSequencerProps> = React.memo(({
           </div>
 
           {/* 8 Pistas de Percusión con Botones Mecánicos TR-Style */}
-          <div className="flex flex-col gap-1 lg:gap-1.5 overflow-x-auto">
+          <div className="flex flex-col gap-[3px] sm:gap-1 lg:gap-1.5 overflow-x-auto">
             {[0, 1, 2, 3, 4, 5, 6, 7].map((padIdx) => {
               const padName = padSlots[padIdx]?.sampleName || DEFAULT_DRUM_NAMES[padIdx] || `P${padIdx + 1}`;
               const theme = PAD_ROLE_THEMES[padIdx] || PAD_ROLE_THEMES[0];
@@ -764,7 +764,7 @@ export const StepSequencer: React.FC<StepSequencerProps> = React.memo(({
                       setSelectedTrack(padIdx);
                       onTriggerPad?.(padIdx);
                     }}
-                    className={`w-20 sm:w-24 lg:w-32 h-5 sm:h-6 lg:h-8 rounded-md lg:rounded-lg flex items-center justify-between px-1.5 lg:px-2.5 transition-all shrink-0 cursor-pointer border font-mono text-[8.5px] lg:text-[10px] font-bold select-none ${
+                    className={`w-20 sm:w-24 lg:w-32 h-[22px] sm:h-6 lg:h-8 rounded-md lg:rounded-lg flex items-center justify-between px-1.5 lg:px-2.5 transition-all shrink-0 cursor-pointer border font-mono text-[8.5px] lg:text-[10px] font-bold select-none touch-manipulation ${
                       isLearnSelected
                         ? "border-2 border-amber-400 bg-amber-950/40 text-amber-200 shadow-[0_0_18px_rgba(245,158,11,0.85)] ring-2 ring-amber-400/60 animate-pulse"
                         : isMidiLearnActive
@@ -788,7 +788,7 @@ export const StepSequencer: React.FC<StepSequencerProps> = React.memo(({
                   </button>
 
                   {/* 16 Botones de Paso TR */}
-                  <div className="flex-1 flex items-center gap-0.5 sm:gap-1 min-w-[340px] sm:min-w-[420px] lg:min-w-[500px]">
+                  <div className="flex-1 flex items-center gap-0.5 sm:gap-1 min-w-0">
                     {STEPS_16.map((stepIdx) => {
                       const actualStep = resolution === "thirtySecond" ? activePage * 16 + stepIdx : stepIdx;
                       const isStepDisabled = resolution === "eighth" && stepIdx >= 8;
@@ -800,7 +800,7 @@ export const StepSequencer: React.FC<StepSequencerProps> = React.memo(({
 
                       return (
                         <React.Fragment key={`pad-${padIdx}-step-${stepIdx}`}>
-                          {stepIdx > 0 && stepIdx % 4 === 0 && <div className="w-1 lg:w-1.5" />}
+                          {stepIdx > 0 && stepIdx % 4 === 0 && <div className="w-0.5 sm:w-1 lg:w-1.5" />}
                           <button
                             type="button"
                             disabled={isStepDisabled}
@@ -809,7 +809,7 @@ export const StepSequencer: React.FC<StepSequencerProps> = React.memo(({
                                 onToggleStep(padIdx, actualStep);
                               }
                             }}
-                            className={`flex-1 h-5 sm:h-6 lg:h-8 rounded-[3px] font-mono text-[9px] transition-all relative overflow-hidden active:scale-95 ${
+                            className={`flex-1 h-[22px] sm:h-6 lg:h-8 rounded-[3px] font-mono text-[9px] transition-all relative overflow-hidden active:scale-95 touch-manipulation ${
                               isStepDisabled
                                 ? "opacity-15 bg-[#090a0d] border border-white/[0.04] cursor-not-allowed pointer-events-none"
                                 : isActive
@@ -826,7 +826,7 @@ export const StepSequencer: React.FC<StepSequencerProps> = React.memo(({
                             {!isStepDisabled && (
                               <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                                 <span
-                                  className={`w-2.5 lg:w-3.5 h-1 rounded-sm transition-all ${
+                                  className={`w-2 sm:w-2.5 lg:w-3.5 h-1 rounded-sm transition-all ${
                                     isActive
                                       ? isPlayhead
                                         ? "bg-white shadow-[0_0_10px_white]"
