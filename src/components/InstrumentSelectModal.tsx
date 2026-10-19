@@ -66,7 +66,7 @@ export const FACTORY_INSTRUMENTS: FactoryInstrumentDef[] = [
     subtitle: 'Vintage Electro-Mechanic',
     description: 'Timbres clásicos de púas electromecánicas con calidez analógica y timbre aterciopelado.',
     fileSizeMb: 522.1,
-    downloadUrl: 'https://github.com/Vladivostok214/ImpactSamplerStudio/releases/download/soundfonts-v1.0.0/Rhodes.(from.Dream.Piano).sf2',
+    downloadUrl: 'https://github.com/Vladivostok214/ImpactSamplerStudio/releases/download/soundfonts-v1.0.0/Rhodes.from.Dream.Piano.sf2',
     imgSrc: rhodesImg,
     theme: {
       border: 'border-cyan-500/50 hover:border-cyan-400',

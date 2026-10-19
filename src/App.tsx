@@ -941,7 +941,10 @@ export const App: React.FC = () => {
   const handleSelectSoundfont = async (idOrFilename: string) => {
     // 1. Si ya está descargado y en caché local IndexedDB
     const stored = savedSoundfonts.find(
-      (s) => s.id === idOrFilename || s.id.toLowerCase() === idOrFilename.toLowerCase()
+      (s) =>
+        s.id === idOrFilename ||
+        s.id.toLowerCase() === idOrFilename.toLowerCase() ||
+        (idOrFilename.toLowerCase().includes('rhodes') && s.id.toLowerCase().includes('rhodes'))
     );
     if (stored) {
       await handleSelectStored(stored.id);
@@ -950,7 +953,11 @@ export const App: React.FC = () => {
 
     // 2. Si es un instrumento de fábrica no descargado aún
     const factoryDef = FACTORY_INSTRUMENTS.find(
-      (f) => f.id === idOrFilename || f.filename === idOrFilename || f.id.toLowerCase() === idOrFilename.toLowerCase()
+      (f) =>
+        f.id === idOrFilename ||
+        f.filename === idOrFilename ||
+        f.id.toLowerCase() === idOrFilename.toLowerCase() ||
+        (idOrFilename.toLowerCase().includes('rhodes') && f.id.toLowerCase().includes('rhodes'))
     );
     if (factoryDef) {
       await handleDownloadFactory(factoryDef);
