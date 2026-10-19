@@ -62,7 +62,7 @@ export const HardwareSkeleton: React.FC<HardwareSkeletonProps> = ({
   keyRange,
   padSlots = [],
   knobMappings = [],
-  fxRouting = "both",
+  fxRouting = "off",
   onChangeFxRouting,
   arpState,
   onChangeArpState,

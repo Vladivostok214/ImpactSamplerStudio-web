@@ -71,7 +71,7 @@ export const App: React.FC = () => {
   const [knobs, setKnobs] = useState<number[]>([64, 64, 0, 0, 0, 0, 0, 64]);
   const [pitchBend, setPitchBend] = useState<number>(0);
   const [modWheel, setModWheel] = useState<number>(0);
-  const [fxRouting, setFxRouting] = useState<FxRouting>('both');
+  const [fxRouting, setFxRouting] = useState<FxRouting>('off');
   const [qwertyEnabled, setQwertyEnabled] = useState<boolean>(true);
 
   // Estados de Modo Workstation y Secuenciador Rítmico (Bloque 4)
@@ -97,6 +97,8 @@ export const App: React.FC = () => {
   const [isRecording, setIsRecording] = useState<boolean>(false);
   const [isMetronomeActive, setIsMetronomeActive] = useState<boolean>(false);
   const [currentBeat, setCurrentBeat] = useState<number>(0);
+  const isMetronomeActiveRef = useRef(isMetronomeActive);
+  isMetronomeActiveRef.current = isMetronomeActive;
 
   // Estados de Arpegiador y Tempo
   const [bpm, setBpm] = useState<number>(120);
@@ -134,7 +136,12 @@ export const App: React.FC = () => {
     }
     const nextPlaying = audioBridge.seqTogglePlay();
     setIsPlaying(nextPlaying);
-    setSequencerState((prev) => ({ ...prev, isPlaying: nextPlaying, isPaused: !nextPlaying }));
+    setSequencerState((prev) => ({
+      ...prev,
+      isPlaying: nextPlaying,
+      isPaused: !nextPlaying,
+      ...(!nextPlaying ? { isRecording: false } : {}),
+    }));
     if (!nextPlaying) {
       audioBridge.noteOffAll(false);
       setIsRecording(false);
@@ -150,7 +157,7 @@ export const App: React.FC = () => {
     setCurrentBeat(0);
     audioBridge.noteOffAll(false);
     clearAllVisualKeys();
-    setSequencerState((prev) => ({ ...prev, isPlaying: false, isPaused: false, currentStep: 0 }));
+    setSequencerState((prev) => ({ ...prev, isPlaying: false, isPaused: false, isRecording: false, currentStep: 0 }));
   };
 
   const handleToggleRecord = async () => {
@@ -169,11 +176,16 @@ export const App: React.FC = () => {
     setIsRecording(nextRecording);
     audioBridge.seqSetRecording(nextRecording);
 
+    setSequencerState((prev) => ({
+      ...prev,
+      isRecording: nextRecording,
+      ...(nextRecording && !isPlaying ? { isPlaying: true, isPaused: false } : {}),
+    }));
+
     // Si se activa grabación y el secuenciador está detenido, iniciar reproducción automáticamente
     if (nextRecording && !isPlaying) {
       const nextPlaying = audioBridge.seqTogglePlay();
       setIsPlaying(nextPlaying);
-      setSequencerState((prev) => ({ ...prev, isPlaying: nextPlaying, isPaused: false }));
     }
   };
 
@@ -276,29 +288,24 @@ export const App: React.FC = () => {
     };
   }, []);
 
-  // Reloj Acústico del Metrónomo y Beat Tracker (1, 2, 3, 4)
+  // Enlace sample-accurate del metrónomo acústico y beat tracker (1, 2, 3, 4) con el paso del secuenciador
   useEffect(() => {
-    if (!isPlaying) {
-      setCurrentBeat(0);
-      return;
-    }
+    const unsub = audioBridge.onStepChange((step) => {
+      setSequencerState((prev) => (prev.currentStep !== step ? { ...prev, currentStep: step } : prev));
 
-    const intervalMs = (60 / bpm) * 1000;
-    if (isMetronomeActive) {
-      audioBridge.playMetronomeClick(true);
-    }
-
-    let beat = 0;
-    const timer = setInterval(() => {
-      beat = (beat + 1) % 4;
-      setCurrentBeat(beat);
-      if (isMetronomeActive) {
-        audioBridge.playMetronomeClick(beat === 0);
+      // En resolución de semicorcheas (16th): 4 pasos por beat (pasos 0, 4, 8, 12, 16, 20, 24, 28)
+      if (step % 4 === 0) {
+        const beat = Math.floor(step / 4) % 4;
+        setCurrentBeat(beat);
+        if (isMetronomeActiveRef.current) {
+          const isDownbeat = step === 0 || step === 16;
+          audioBridge.playMetronomeClick(isDownbeat);
+        }
       }
-    }, intervalMs);
+    });
 
-    return () => clearInterval(timer);
-  }, [isPlaying, bpm, isMetronomeActive]);
+    return unsub;
+  }, []);
 
   const handleStartAudio = async () => {
     await audioBridge.initialize();
@@ -776,19 +783,6 @@ export const App: React.FC = () => {
     audioBridge.setBpm(nextBpm);
     setSequencerState((prev) => ({ ...prev, bpm: nextBpm }));
   };
-
-  // Sincronización continua de Playhead de Secuenciador TR (60 FPS sin jitter)
-  useEffect(() => {
-    if (!isPlaying) return;
-    let animId: number;
-    const poll = () => {
-      const step = audioBridge.seqGetCurrentStep();
-      setSequencerState((prev) => (prev.currentStep !== step ? { ...prev, currentStep: step } : prev));
-      animId = requestAnimationFrame(poll);
-    };
-    animId = requestAnimationFrame(poll);
-    return () => cancelAnimationFrame(animId);
-  }, [isPlaying]);
 
   // Sincronización reactiva del patrón cuando se graba en vivo desde el hilo de audio
   useEffect(() => {

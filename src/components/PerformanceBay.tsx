@@ -11,7 +11,7 @@ interface PerformanceBayProps {
 }
 
 export const PerformanceBay: React.FC<PerformanceBayProps> = ({
-  fxRouting = "both",
+  fxRouting = "off",
   onChangeFxRouting,
   arpState: externalArpState,
   onChangeArpState,

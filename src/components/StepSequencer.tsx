@@ -325,7 +325,7 @@ export const StepSequencer: React.FC<StepSequencerProps> = ({
                 onClick={onToggleRecord}
                 className={`w-7 h-6 flex items-center justify-center rounded transition ${
                   isRecording
-                    ? "bg-rose-500/30 text-rose-300 border border-rose-500/40 animate-pulse"
+                    ? "bg-rose-950/70 text-rose-400 border border-rose-500/50 shadow-[0_0_10px_rgba(244,63,94,0.45)] animate-pulse"
                     : "text-zinc-500 hover:text-rose-400"
                 }`}
                 title="Record"
