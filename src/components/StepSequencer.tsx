@@ -405,7 +405,8 @@ export const StepSequencer: React.FC<StepSequencerProps> = React.memo(({
                 return (
                   <button
                     type="button"
-                    onClick={() => {
+                    onPointerDown={(e) => {
+                      e.preventDefault();
                       if (isMidiLearnActive) {
                         onSelectLearnTarget?.({ type: "action", id: "bank" });
                         return;
@@ -417,7 +418,7 @@ export const StepSequencer: React.FC<StepSequencerProps> = React.memo(({
                         ? `Banco A/B: ${bankMapped ? `Asignado (${bankMapped})` : "Sin asignar"}`
                         : `Cambiar Banco (Actual: ${currentBank.toUpperCase()})`
                     }
-                    className={`h-6 lg:h-7 px-2 lg:px-2.5 rounded-md text-[8.5px] lg:text-[9.5px] font-mono font-bold tracking-wider border transition-all active:scale-95 shadow-[inset_0_1px_0_rgba(255,255,255,0.1),0_2px_4px_rgba(0,0,0,0.5)] cursor-pointer flex items-center gap-1 lg:gap-1.5 ${
+                    className={`h-6 lg:h-7 px-2 lg:px-2.5 rounded-md text-[8.5px] lg:text-[9.5px] font-mono font-bold tracking-wider border active:scale-95 shadow-[inset_0_1px_0_rgba(255,255,255,0.1),0_2px_4px_rgba(0,0,0,0.5)] cursor-pointer flex items-center gap-1 lg:gap-1.5 touch-none ${
                       isBankSelected
                         ? "border-2 border-amber-400 bg-amber-950/40 shadow-[0_0_15px_rgba(245,158,11,0.8)] ring-2 ring-amber-400/60 animate-pulse text-amber-200"
                         : isMidiLearnActive
@@ -685,7 +686,8 @@ export const StepSequencer: React.FC<StepSequencerProps> = React.memo(({
                   return (
                     <button
                       type="button"
-                      onClick={() => {
+                      onPointerDown={(e) => {
+                        e.preventDefault();
                         if (isMidiLearnActive) {
                           onSelectLearnTarget?.({ type: "action", id: "undo" });
                           return;
@@ -697,7 +699,7 @@ export const StepSequencer: React.FC<StepSequencerProps> = React.memo(({
                           ? `Deshacer (Undo): ${mapped ? `Asignado (${mapped})` : "Sin asignar"}`
                           : "Deshacer (Undo)"
                       }
-                      className={`px-1.5 lg:px-2 h-full flex items-center justify-center gap-1 lg:gap-1.5 font-mono text-[8.5px] lg:text-[9px] font-bold uppercase tracking-wider transition-all cursor-pointer border-r border-white/10 ${
+                      className={`px-1.5 lg:px-2 h-full flex items-center justify-center gap-1 lg:gap-1.5 font-mono text-[8.5px] lg:text-[9px] font-bold uppercase tracking-wider cursor-pointer border-r border-white/10 touch-none ${
                         isSelected
                           ? "bg-amber-950/40 text-amber-200 shadow-[inset_0_0_12px_rgba(245,158,11,0.6)] animate-pulse"
                           : isMidiLearnActive
@@ -721,7 +723,8 @@ export const StepSequencer: React.FC<StepSequencerProps> = React.memo(({
                   return (
                     <button
                       type="button"
-                      onClick={() => {
+                      onPointerDown={(e) => {
+                        e.preventDefault();
                         if (isMidiLearnActive) {
                           onSelectLearnTarget?.({ type: "action", id: "clearTrack" });
                           return;
@@ -733,7 +736,7 @@ export const StepSequencer: React.FC<StepSequencerProps> = React.memo(({
                           ? `Borrar Pista: ${mapped ? `Asignado (${mapped})` : "Sin asignar"}`
                           : `Borrar Notas de la Pista Seleccionada (Pad ${selectedTrack + 1})`
                       }
-                      className={`px-1.5 lg:px-2 h-full flex items-center justify-center gap-1 lg:gap-1.5 font-mono text-[8.5px] lg:text-[9px] font-bold uppercase tracking-wider transition-all cursor-pointer border-r border-white/10 ${
+                      className={`px-1.5 lg:px-2 h-full flex items-center justify-center gap-1 lg:gap-1.5 font-mono text-[8.5px] lg:text-[9px] font-bold uppercase tracking-wider cursor-pointer border-r border-white/10 touch-none ${
                         isSelected
                           ? "bg-amber-950/40 text-amber-200 shadow-[inset_0_0_12px_rgba(245,158,11,0.6)] animate-pulse"
                           : isMidiLearnActive
@@ -766,7 +769,8 @@ export const StepSequencer: React.FC<StepSequencerProps> = React.memo(({
                   return (
                     <button
                       type="button"
-                      onClick={() => {
+                      onPointerDown={(e) => {
+                        e.preventDefault();
                         if (isMidiLearnActive) {
                           onSelectLearnTarget?.({ type: "action", id: "clearPattern" });
                           return;
@@ -778,7 +782,7 @@ export const StepSequencer: React.FC<StepSequencerProps> = React.memo(({
                           ? `Borrar Todo el Patrón: ${mapped ? `Asignado (${mapped})` : "Sin asignar"}`
                           : "Borrar Todo el Patrón"
                       }
-                      className={`w-6 lg:w-7 h-full flex items-center justify-center transition-all cursor-pointer ${
+                      className={`w-6 lg:w-7 h-full flex items-center justify-center cursor-pointer touch-none ${
                         isSelected
                           ? "bg-amber-950/40 text-amber-200 shadow-[inset_0_0_12px_rgba(245,158,11,0.6)] animate-pulse"
                           : isMidiLearnActive
@@ -830,8 +834,8 @@ export const StepSequencer: React.FC<StepSequencerProps> = React.memo(({
                         : isHit
                         ? theme.hit
                         : isSelected
-                        ? `${theme.border} bg-white/10 text-white lg:shadow-[0_0_10px_rgba(255,255,255,0.2)]`
-                        : `${theme.border} ${theme.bg} ${theme.text} ${theme.shadow}`
+                        ? `${theme.border} bg-white/10 text-white`
+                        : `${theme.border} ${theme.bg} ${theme.text}`
                     }`}
                     title={
                       isMidiLearnActive
@@ -873,10 +877,10 @@ export const StepSequencer: React.FC<StepSequencerProps> = React.memo(({
                               isStepDisabled
                                 ? "opacity-15 bg-[#090a0d] border border-white/[0.04] cursor-not-allowed pointer-events-none"
                                 : isActive
-                                ? "bg-[#2a2113] lg:bg-gradient-to-b lg:from-[#3a2f1c] lg:via-[#2a2113] lg:to-[#18130a] border-t border-amber-500/80 border-b-[2px] border-b-black lg:shadow-[0_2px_4px_rgba(0,0,0,0.8),inset_0_0_10px_rgba(245,158,11,0.35)] cursor-pointer"
+                                ? "bg-[#2a2113] border-t border-amber-500/80 border-b-[2px] border-b-black cursor-pointer"
                                 : isEvenGroup
-                                ? "bg-[#1b1c22] lg:bg-gradient-to-b lg:from-[#252730] lg:via-[#1b1c22] lg:to-[#111216] border-t border-white/10 border-b-[2px] border-b-black cursor-pointer"
-                                : "bg-[#14151a] lg:bg-gradient-to-b lg:from-[#1c1e24] lg:via-[#14151a] lg:to-[#0c0d10] border-t border-white/5 border-b-[2px] border-b-black cursor-pointer"
+                                ? "bg-[#1b1c22] border-t border-white/10 border-b-[2px] border-b-black cursor-pointer"
+                                : "bg-[#14151a] border-t border-white/5 border-b-[2px] border-b-black cursor-pointer"
                             }`}
                           >
                             {!isStepDisabled && (
@@ -884,7 +888,7 @@ export const StepSequencer: React.FC<StepSequencerProps> = React.memo(({
                                 <span
                                   className={`seq-step-led w-2 sm:w-2.5 lg:w-3.5 h-1 rounded-sm ${
                                     isActive
-                                      ? "bg-amber-400 lg:shadow-[0_0_8px_#f59e0b]"
+                                      ? "bg-amber-400"
                                       : isBeatStart
                                       ? "bg-white/30"
                                       : "bg-white/10"
@@ -936,9 +940,12 @@ export const StepSequencer: React.FC<StepSequencerProps> = React.memo(({
               >
                 <button
                   type="button"
-                  onClick={() => !isMidiLearnActive && onChangeViewMode?.("keys")}
+                  onPointerDown={(e) => {
+                    e.preventDefault();
+                    if (!isMidiLearnActive) onChangeViewMode?.("keys");
+                  }}
                   title={isMidiLearnActive ? undefined : "Modo Teclado"}
-                  className={`px-2 py-0.5 lg:px-2.5 lg:py-1 rounded font-mono text-[8.5px] lg:text-[9.5px] font-bold tracking-wider transition-all cursor-pointer ${
+                  className={`px-2 py-0.5 lg:px-2.5 lg:py-1 rounded font-mono text-[8.5px] lg:text-[9.5px] font-bold tracking-wider cursor-pointer touch-none ${
                     !isSeqOpen
                       ? "bg-gradient-to-b from-cyan-400 to-cyan-600 text-black shadow-[0_0_12px_rgba(6,182,212,0.6)] font-black"
                       : "text-zinc-400 hover:text-white hover:bg-white/5"
@@ -948,9 +955,12 @@ export const StepSequencer: React.FC<StepSequencerProps> = React.memo(({
                 </button>
                 <button
                   type="button"
-                  onClick={() => !isMidiLearnActive && onChangeViewMode?.("seq")}
+                  onPointerDown={(e) => {
+                    e.preventDefault();
+                    if (!isMidiLearnActive) onChangeViewMode?.("seq");
+                  }}
                   title={isMidiLearnActive ? undefined : "Modo Secuenciador"}
-                  className={`px-2 py-0.5 lg:px-2.5 lg:py-1 rounded font-mono text-[8.5px] lg:text-[9.5px] font-bold tracking-wider transition-all cursor-pointer ${
+                  className={`px-2 py-0.5 lg:px-2.5 lg:py-1 rounded font-mono text-[8.5px] lg:text-[9.5px] font-bold tracking-wider cursor-pointer touch-none ${
                     isSeqOpen
                       ? "bg-gradient-to-b from-amber-400 to-amber-600 text-black shadow-[0_0_12px_rgba(245,158,11,0.6)] font-black"
                       : "text-zinc-400 hover:text-white hover:bg-white/5"
@@ -977,7 +987,8 @@ export const StepSequencer: React.FC<StepSequencerProps> = React.memo(({
               return (
                 <button
                   type="button"
-                  onClick={() => {
+                  onPointerDown={(e) => {
+                    e.preventDefault();
                     if (isMidiLearnActive) {
                       onSelectLearnTarget?.({ type: "action", id: "bpmDown" });
                       return;
@@ -985,7 +996,7 @@ export const StepSequencer: React.FC<StepSequencerProps> = React.memo(({
                     onAdjustBpm?.(-1);
                   }}
                   title={isMidiLearnActive ? `Tempo -1: ${mapped ? `Asignado (${mapped})` : "Sin asignar"}` : "Tempo -1"}
-                  className={`w-5 h-5 lg:w-6 lg:h-6 flex items-center justify-center rounded font-mono font-bold text-[11px] lg:text-xs transition cursor-pointer ${
+                  className={`w-5 h-5 lg:w-6 lg:h-6 flex items-center justify-center rounded font-mono font-bold text-[11px] lg:text-xs cursor-pointer touch-none ${
                     isSelected
                       ? "border-2 border-amber-400 bg-amber-950/40 shadow-[0_0_15px_rgba(245,158,11,0.8)] ring-2 ring-amber-400/60 animate-pulse text-amber-200"
                       : isMidiLearnActive
@@ -1025,7 +1036,7 @@ export const StepSequencer: React.FC<StepSequencerProps> = React.memo(({
                     setIsEditingBpm(true);
                   }}
                   title="Tempo BPM (Clic para editar)"
-                  className="font-mono text-[10.5px] lg:text-xs font-bold text-emerald-400 tracking-wider cursor-pointer hover:brightness-125 transition select-none drop-shadow-[0_0_6px_rgba(16,185,129,0.5)] tabular-nums"
+                  className="font-mono text-[10.5px] lg:text-xs font-bold text-emerald-400 tracking-wider cursor-pointer hover:brightness-125 select-none drop-shadow-[0_0_6px_rgba(16,185,129,0.5)] tabular-nums"
                 >
                   {Math.round(bpm)}
                 </span>
@@ -1045,7 +1056,8 @@ export const StepSequencer: React.FC<StepSequencerProps> = React.memo(({
               return (
                 <button
                   type="button"
-                  onClick={() => {
+                  onPointerDown={(e) => {
+                    e.preventDefault();
                     if (isMidiLearnActive) {
                       onSelectLearnTarget?.({ type: "action", id: "bpmUp" });
                       return;
@@ -1053,7 +1065,7 @@ export const StepSequencer: React.FC<StepSequencerProps> = React.memo(({
                     onAdjustBpm?.(1);
                   }}
                   title={isMidiLearnActive ? `Tempo +1: ${mapped ? `Asignado (${mapped})` : "Sin asignar"}` : "Tempo +1"}
-                  className={`w-5 h-5 lg:w-6 lg:h-6 flex items-center justify-center rounded font-mono font-bold text-[11px] lg:text-xs transition cursor-pointer ${
+                  className={`w-5 h-5 lg:w-6 lg:h-6 flex items-center justify-center rounded font-mono font-bold text-[11px] lg:text-xs cursor-pointer touch-none ${
                     isSelected
                       ? "border-2 border-amber-400 bg-amber-950/40 shadow-[0_0_15px_rgba(245,158,11,0.8)] ring-2 ring-amber-400/60 animate-pulse text-amber-200"
                       : isMidiLearnActive
@@ -1076,7 +1088,8 @@ export const StepSequencer: React.FC<StepSequencerProps> = React.memo(({
               return (
                 <button
                   type="button"
-                  onClick={() => {
+                  onPointerDown={(e) => {
+                    e.preventDefault();
                     if (isMidiLearnActive) {
                       onSelectLearnTarget?.({ type: "action", id: "tapTempo" });
                       return;
@@ -1084,7 +1097,7 @@ export const StepSequencer: React.FC<StepSequencerProps> = React.memo(({
                     onTapTempo?.();
                   }}
                   title={isMidiLearnActive ? `Tap Tempo: ${mapped ? `Asignado (${mapped})` : "Sin asignar"}` : "Tap Tempo"}
-                  className={`px-1.5 py-0.5 lg:px-2 lg:py-1 ml-0.5 lg:ml-1 text-[8.5px] lg:text-[9.5px] font-mono font-bold uppercase tracking-wider rounded border transition active:scale-95 cursor-pointer ${
+                  className={`px-1.5 py-0.5 lg:px-2 lg:py-1 ml-0.5 lg:ml-1 text-[8.5px] lg:text-[9.5px] font-mono font-bold uppercase tracking-wider rounded border active:scale-95 cursor-pointer touch-none ${
                     isSelected
                       ? "border-2 border-amber-400 bg-amber-950/40 shadow-[0_0_15px_rgba(245,158,11,0.8)] ring-2 ring-amber-400/60 animate-pulse text-amber-200"
                       : isMidiLearnActive
@@ -1110,7 +1123,8 @@ export const StepSequencer: React.FC<StepSequencerProps> = React.memo(({
               return (
                 <button
                   type="button"
-                  onClick={() => {
+                  onPointerDown={(e) => {
+                    e.preventDefault();
                     if (isMidiLearnActive) {
                       onSelectLearnTarget?.({ type: "action", id: "click" });
                       return;
@@ -1124,7 +1138,7 @@ export const StepSequencer: React.FC<StepSequencerProps> = React.memo(({
                       ? "Metrónomo Sonoro: Activo"
                       : "Metrónomo Sonoro: Inactivo"
                   }
-                  className={`w-7 sm:w-8 lg:w-10 h-full flex items-center justify-center gap-1 lg:gap-1.5 transition-all cursor-pointer border-r border-white/10 ${
+                  className={`w-7 sm:w-8 lg:w-10 h-full flex items-center justify-center gap-1 lg:gap-1.5 cursor-pointer border-r border-white/10 touch-none ${
                     isClickSelected
                       ? "bg-amber-950/40 text-amber-200 shadow-[inset_0_0_12px_rgba(245,158,11,0.6)] animate-pulse"
                       : isMidiLearnActive
@@ -1148,7 +1162,7 @@ export const StepSequencer: React.FC<StepSequencerProps> = React.memo(({
                     <circle cx="12" cy="11" r="1.5" fill="currentColor" />
                   </svg>
                   <span
-                    className={`w-1.5 h-1.5 rounded-full transition-all shrink-0 ${
+                    className={`w-1.5 h-1.5 rounded-full shrink-0 ${
                       isClickEnabled ? "bg-amber-400 shadow-[0_0_4px_#f59e0b]" : "bg-zinc-600"
                     }`}
                   />
@@ -1166,7 +1180,8 @@ export const StepSequencer: React.FC<StepSequencerProps> = React.memo(({
               return (
                 <button
                   type="button"
-                  onClick={() => {
+                  onPointerDown={(e) => {
+                    e.preventDefault();
                     if (isMidiLearnActive) {
                       onSelectLearnTarget?.({ type: "action", id: "visualMetronome" });
                       return;
@@ -1180,7 +1195,7 @@ export const StepSequencer: React.FC<StepSequencerProps> = React.memo(({
                       ? "Metrónomo Visual: Activo"
                       : "Metrónomo Visual: Inactivo"
                   }
-                  className={`w-7 sm:w-8 lg:w-10 h-full flex items-center justify-center gap-1 lg:gap-1.5 transition-all cursor-pointer ${
+                  className={`w-7 sm:w-8 lg:w-10 h-full flex items-center justify-center gap-1 lg:gap-1.5 cursor-pointer touch-none ${
                     isSelected
                       ? "bg-amber-950/40 text-amber-200 shadow-[inset_0_0_12px_rgba(245,158,11,0.6)] animate-pulse"
                       : isMidiLearnActive
@@ -1192,7 +1207,7 @@ export const StepSequencer: React.FC<StepSequencerProps> = React.memo(({
                 >
                   <Eye size={12} className="shrink-0" />
                   <span
-                    className={`w-1.5 h-1.5 rounded-full transition-all shrink-0 ${
+                    className={`w-1.5 h-1.5 rounded-full shrink-0 ${
                       isVisualMetronomeVisible
                         ? "bg-emerald-400 shadow-[0_0_4px_#10b981]"
                         : "bg-zinc-600"
@@ -1217,7 +1232,8 @@ export const StepSequencer: React.FC<StepSequencerProps> = React.memo(({
               return (
                 <button
                   type="button"
-                  onClick={() => {
+                  onPointerDown={(e) => {
+                    e.preventDefault();
                     if (isMidiLearnActive) {
                       onSelectLearnTarget?.({ type: "action", id: "stop" });
                       return;
@@ -1225,7 +1241,7 @@ export const StepSequencer: React.FC<StepSequencerProps> = React.memo(({
                     onStop();
                   }}
                   title={isMidiLearnActive ? `Stop: ${mapped ? `Asignado (${mapped})` : "Sin asignar"}` : "Stop"}
-                  className={`w-7 sm:w-8 lg:w-10 h-full flex items-center justify-center transition-all cursor-pointer border-r border-white/10 ${
+                  className={`w-7 sm:w-8 lg:w-10 h-full flex items-center justify-center cursor-pointer border-r border-white/10 touch-none ${
                     isSelected
                       ? "bg-amber-950/40 text-amber-200 shadow-[inset_0_0_12px_rgba(245,158,11,0.6)] animate-pulse"
                       : isMidiLearnActive
@@ -1250,7 +1266,8 @@ export const StepSequencer: React.FC<StepSequencerProps> = React.memo(({
               return (
                 <button
                   type="button"
-                  onClick={() => {
+                  onPointerDown={(e) => {
+                    e.preventDefault();
                     if (isMidiLearnActive) {
                       onSelectLearnTarget?.({ type: "action", id: "play" });
                       return;
@@ -1262,7 +1279,7 @@ export const StepSequencer: React.FC<StepSequencerProps> = React.memo(({
                       ? `Play / Pause: ${mapped ? `Asignado (${mapped})` : "Sin asignar"}`
                       : "Play / Pause (Espacio)"
                   }
-                  className={`px-2.5 sm:px-3 lg:px-4 h-full text-[9.5px] lg:text-[11px] font-mono uppercase tracking-wider flex items-center justify-center gap-1 lg:gap-1.5 transition-all cursor-pointer border-r border-white/10 ${
+                  className={`px-2.5 sm:px-3 lg:px-4 h-full text-[9.5px] lg:text-[11px] font-mono uppercase tracking-wider flex items-center justify-center gap-1 lg:gap-1.5 cursor-pointer border-r border-white/10 touch-none ${
                     isSelected
                       ? "bg-amber-950/40 text-amber-200 shadow-[inset_0_0_12px_rgba(245,158,11,0.6)] animate-pulse font-bold"
                       : isMidiLearnActive
@@ -1301,7 +1318,8 @@ export const StepSequencer: React.FC<StepSequencerProps> = React.memo(({
               return (
                 <button
                   type="button"
-                  onClick={() => {
+                  onPointerDown={(e) => {
+                    e.preventDefault();
                     if (isMidiLearnActive) {
                       onSelectLearnTarget?.({ type: "action", id: "record" });
                       return;
@@ -1309,7 +1327,7 @@ export const StepSequencer: React.FC<StepSequencerProps> = React.memo(({
                     onToggleRecord?.();
                   }}
                   title={isMidiLearnActive ? `Grabar Overdub: ${mapped ? `Asignado (${mapped})` : "Sin asignar"}` : "Grabar Overdub"}
-                  className={`px-2 sm:px-2.5 lg:px-3.5 h-full text-[9.5px] lg:text-[11px] font-mono uppercase tracking-wider flex items-center justify-center gap-1 lg:gap-1.5 transition-all cursor-pointer ${
+                  className={`px-2 sm:px-2.5 lg:px-3.5 h-full text-[9.5px] lg:text-[11px] font-mono uppercase tracking-wider flex items-center justify-center gap-1 lg:gap-1.5 cursor-pointer touch-none ${
                     isSelected
                       ? "bg-amber-950/40 text-amber-200 shadow-[inset_0_0_12px_rgba(245,158,11,0.6)] animate-pulse font-bold"
                       : isMidiLearnActive
@@ -1320,7 +1338,7 @@ export const StepSequencer: React.FC<StepSequencerProps> = React.memo(({
                   }`}
                 >
                   <span
-                    className={`w-1.5 h-1.5 lg:w-2 lg:h-2 rounded-full transition-all shrink-0 ${
+                    className={`w-1.5 h-1.5 lg:w-2 lg:h-2 rounded-full shrink-0 ${
                       isRecording ? "bg-red-500 shadow-[0_0_6px_#ef4444]" : "bg-zinc-500"
                     }`}
                   />

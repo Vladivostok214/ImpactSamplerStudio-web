@@ -153,27 +153,11 @@ html, body, #root {
   border-color: #ffffff !important;
 }
 
-/* Glows Gaussianos adicionales únicamente en GPU de Escritorio */
+/* Hover sutil en escritorio sin penalización de blur Gaussiano dinámico */
 @media (min-width: 1024px) {
   .piano-key-black:hover:not(.piano-key-out-of-range) {
     background-color: #1f2026;
   }
-  .piano-key-black.piano-key-active {
-    background: linear-gradient(to bottom, #22d3ee, #06b6d4, #0891b2) !important;
-    box-shadow: 0 0 20px rgba(6, 182, 212, 0.95) !important;
-  }
-  .piano-key-white.piano-key-active {
-    background: linear-gradient(to bottom, #67e8f9, #22d3ee, #06b6d4) !important;
-    box-shadow: 0 0 18px rgba(6, 182, 212, 0.9) !important;
-  }
-  .seq-step-btn[data-playhead="true"][data-active="false"] {
-    box-shadow: 0 0 8px rgba(16, 185, 129, 0.35) !important;
-  }
-  .seq-step-btn[data-playhead="true"][data-active="true"] {
-    box-shadow: 0 0 12px #ffffff !important;
-  }
-  .seq-pad-btn[data-pad-hit="true"] {
-    box-shadow: 0 0 14px rgba(52, 211, 153, 0.75) !important;
-  }
 }
+
 

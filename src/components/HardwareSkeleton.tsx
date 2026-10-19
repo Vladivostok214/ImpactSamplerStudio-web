@@ -266,7 +266,7 @@ export const HardwareSkeleton: React.FC<HardwareSkeletonProps> = React.memo(({
   return (
     <div className="flex flex-col w-full">
       {/* 1. Deck Superior: Wheels, Faders, OLED + Knobs, Performance Bay (Horizontal en Mobile Landscape & Desktop; se repliega en mobile durante modo SEQ) */}
-      <div className={`${hideKeyboard ? "hidden lg:flex" : "flex"} p-2 sm:p-2.5 lg:p-4 bg-gradient-to-b from-[#111216] via-[#0d0e12] to-[#08080a] border-b border-white/[0.08] flex-row flex-wrap sm:flex-nowrap gap-2 lg:gap-4 items-stretch w-full`}>
+      <div className={`${hideKeyboard ? "hidden lg:flex" : "flex"} p-2 sm:p-2.5 lg:p-4 bg-gradient-to-b from-[#111216] via-[#0d0e12] to-[#08080a] border-b border-white/[0.08] flex-row flex-wrap sm:flex-nowrap gap-2 lg:gap-4 items-stretch w-full gpu-contain`}>
         {/* Ruedas Pitch & Mod */}
         <div className="flex items-center gap-1.5 lg:gap-2 pr-2 lg:pr-4 border-r border-white/[0.08] shrink-0">
           {/* Pitch Wheel */}
@@ -274,7 +274,7 @@ export const HardwareSkeleton: React.FC<HardwareSkeletonProps> = React.memo(({
             <span className="text-[8px] lg:text-[9.5px] font-mono text-zinc-400 mb-0.5 lg:mb-1 font-bold tracking-wider">PITCH</span>
             <div
               onPointerDown={handlePitchWheelPointerDown}
-              className="w-5 lg:w-6 h-16 lg:h-28 bg-[#08080a] rounded-lg border border-white/[0.08] relative overflow-hidden flex items-center justify-center cursor-ns-resize touch-none shadow-[inset_0_2px_6px_rgba(0,0,0,0.9)] hover:border-white/20 transition"
+              className="w-5 lg:w-6 h-16 lg:h-28 bg-[#08080a] rounded-lg border border-white/[0.08] relative overflow-hidden flex items-center justify-center cursor-ns-resize touch-none shadow-[inset_0_2px_6px_rgba(0,0,0,0.9)] hover:border-white/20"
               title="Pitch Bend"
             >
               <div className="absolute inset-0 flex flex-col justify-between py-2 pointer-events-none opacity-20">
@@ -285,7 +285,7 @@ export const HardwareSkeleton: React.FC<HardwareSkeletonProps> = React.memo(({
               </div>
               <div className="absolute w-full h-[1px] bg-white/30 top-1/2 shadow-[0_0_4px_white]" />
               <div
-                className="absolute w-full h-2.5 lg:h-3 bg-cyan-400/90 rounded transition-all duration-75 shadow-[0_0_10px_rgba(34,211,238,0.8)]"
+                className="absolute w-full h-2.5 lg:h-3 bg-cyan-400/90 rounded shadow-[0_0_10px_rgba(34,211,238,0.8)]"
                 style={{ top: `${50 - (pitchBend / 8192) * 40}%` }}
               />
             </div>
@@ -299,7 +299,7 @@ export const HardwareSkeleton: React.FC<HardwareSkeletonProps> = React.memo(({
             <span className="text-[8px] lg:text-[9.5px] font-mono text-zinc-400 mb-0.5 lg:mb-1 font-bold tracking-wider">MOD</span>
             <div
               onPointerDown={handleModWheelPointerDown}
-              className="w-5 lg:w-6 h-16 lg:h-28 bg-[#08080a] rounded-lg border border-white/[0.08] relative overflow-hidden flex items-end cursor-ns-resize touch-none shadow-[inset_0_2px_6px_rgba(0,0,0,0.9)] hover:border-white/20 transition"
+              className="w-5 lg:w-6 h-16 lg:h-28 bg-[#08080a] rounded-lg border border-white/[0.08] relative overflow-hidden flex items-end cursor-ns-resize touch-none shadow-[inset_0_2px_6px_rgba(0,0,0,0.9)] hover:border-white/20"
               title="Modulation (CC 1)"
             >
               <div className="absolute inset-0 flex flex-col justify-between py-2 pointer-events-none opacity-20 z-0">
@@ -308,7 +308,7 @@ export const HardwareSkeleton: React.FC<HardwareSkeletonProps> = React.memo(({
                 <div className="w-full h-[1px] bg-white" />
               </div>
               <div
-                className="w-full bg-emerald-500 rounded transition-all duration-75 shadow-[0_0_10px_rgba(16,185,129,0.8)] z-10"
+                className="w-full bg-emerald-500 rounded shadow-[0_0_10px_rgba(16,185,129,0.8)] z-10"
                 style={{ height: `${(modWheel / 127) * 100}%` }}
               />
             </div>
@@ -317,7 +317,7 @@ export const HardwareSkeleton: React.FC<HardwareSkeletonProps> = React.memo(({
         </div>
 
         {/* Faders Matrix (F1 a F9) */}
-        <div className="flex-1 sm:flex-none sm:w-[205px] md:w-[250px] lg:w-[340px] shrink-0 pr-0 sm:pr-2 lg:pr-4 sm:border-r border-white/[0.08]">
+        <div className="flex-1 sm:flex-none sm:w-[205px] md:w-[250px] lg:w-[340px] shrink-0 pr-0 sm:pr-2 lg:pr-4 sm:border-r border-white/[0.08] gpu-contain">
           <div className="flex justify-between items-center mb-1 lg:mb-2 px-0.5">
             <span className="text-[8px] lg:text-[9.5px] font-mono uppercase tracking-wider text-zinc-500 font-semibold">
               MIXER
@@ -351,13 +351,13 @@ export const HardwareSkeleton: React.FC<HardwareSkeletonProps> = React.memo(({
                   key={idx}
                   onClick={handleFaderContainerClick}
                   onDoubleClick={() => !isMidiLearnActive && onChangeFader(idx, isMaster ? 100 : 64)}
-                  className="flex-1 flex flex-col items-center cursor-pointer transition-all rounded-lg p-0.5"
+                  className="flex-1 flex flex-col items-center cursor-pointer rounded-lg p-0.5"
                 >
                   <div
                     onPointerDown={(e) => {
                       if (!isMidiLearnActive) handleFaderPointerDown(idx, e);
                     }}
-                    className={`w-full h-16 lg:h-28 bg-[#08080a] rounded-lg relative flex items-center justify-center p-0.5 cursor-ns-resize touch-none transition shadow-[inset_0_2px_6px_rgba(0,0,0,0.9)] overflow-hidden group/fader ${
+                    className={`w-full h-16 lg:h-28 bg-[#08080a] rounded-lg relative flex items-center justify-center p-0.5 cursor-ns-resize touch-none shadow-[inset_0_2px_6px_rgba(0,0,0,0.9)] overflow-hidden group/fader ${
                       isTargetSelected
                         ? "border-2 border-amber-400 shadow-[0_0_18px_rgba(245,158,11,0.9)] ring-2 ring-amber-400/50 animate-pulse"
                         : isMidiLearnActive
@@ -376,13 +376,13 @@ export const HardwareSkeleton: React.FC<HardwareSkeletonProps> = React.memo(({
                   >
                     <div className="absolute left-1/2 -translate-x-1/2 w-[2px] lg:w-[3px] h-[calc(100%-8px)] bg-black rounded-full border border-white/[0.06] shadow-inner" />
                     <div
-                      className={`absolute left-1/2 -translate-x-1/2 w-[2px] bottom-1 rounded-full transition-all duration-75 ${
+                      className={`absolute left-1/2 -translate-x-1/2 w-[2px] bottom-1 rounded-full ${
                         isMaster ? "bg-cyan-400/80 shadow-[0_0_6px_rgba(34,211,238,0.6)]" : `${colorTheme.dot} opacity-60`
                       }`}
                       style={{ height: `${Math.max(0, heightPct * 0.78)}%` }}
                     />
                     <div
-                      className="absolute left-1/2 -translate-x-1/2 w-[88%] h-3 lg:h-4 rounded-sm bg-gradient-to-b from-[#383a42] via-[#22242a] to-[#141518] border border-white/20 shadow-[0_3px_6px_rgba(0,0,0,0.9),inset_0_1px_0_rgba(255,255,255,0.35)] flex items-center justify-center transition-all duration-75 pointer-events-none group-hover/fader:border-white/40"
+                      className="absolute left-1/2 -translate-x-1/2 w-[88%] h-3 lg:h-4 rounded-sm bg-gradient-to-b from-[#383a42] via-[#22242a] to-[#141518] border border-white/20 shadow-[0_3px_6px_rgba(0,0,0,0.9),inset_0_1px_0_rgba(255,255,255,0.35)] flex items-center justify-center pointer-events-none group-hover/fader:border-white/40"
                       style={{ bottom: `calc(${heightPct}% * 0.76 + 2px)` }}
                     >
                       <div className={`w-[75%] h-[2px] rounded-full ${isMaster ? "bg-cyan-400 shadow-[0_0_6px_#22d3ee]" : colorTheme.line}`} />
@@ -467,7 +467,7 @@ export const HardwareSkeleton: React.FC<HardwareSkeletonProps> = React.memo(({
           </div>
 
           {/* Matrix de 8 Knobs (Siempre 8 columnas en línea como en Desktop) */}
-          <div className="grid grid-cols-8 gap-0.5 sm:gap-1 lg:gap-2">
+          <div className="grid grid-cols-8 gap-0.5 sm:gap-1 lg:gap-2 gpu-contain">
             {knobs.map((val, idx) => {
               const rotDeg = -135 + (val / 127) * 270;
               const mapping = knobMappings.find((m) => m.index === idx);
@@ -496,7 +496,7 @@ export const HardwareSkeleton: React.FC<HardwareSkeletonProps> = React.memo(({
                   key={idx}
                   onClick={handleKnobContainerClick}
                   onDoubleClick={() => !isMidiLearnActive && onChangeKnob(idx, [0, 1, 7].includes(idx) ? 64 : 0)}
-                  className={`relative flex flex-col items-center cursor-pointer group py-0.5 lg:py-1 px-0.5 lg:px-1 rounded-lg transition-all ${
+                  className={`relative flex flex-col items-center cursor-pointer group py-0.5 lg:py-1 px-0.5 lg:px-1 rounded-lg ${
                     isKnobTargetSelected
                       ? "border-2 border-amber-400 bg-amber-500/20 shadow-[0_0_18px_rgba(245,158,11,0.85)] ring-2 ring-amber-400/50 animate-pulse"
                       : isMidiLearnActive
@@ -529,9 +529,9 @@ export const HardwareSkeleton: React.FC<HardwareSkeletonProps> = React.memo(({
                         className={isFxBypassed ? "opacity-60" : "drop-shadow-[0_0_5px_rgba(251,191,36,0.85)]"}
                       />
                     </svg>
-                    <div className="absolute w-5 h-5 lg:w-6 lg:h-6 rounded-full bg-gradient-to-b from-[#34373e] via-[#1e2025] to-[#121316] border border-white/15 shadow-[0_2px_5px_rgba(0,0,0,0.8),inset_0_1px_0_rgba(255,255,255,0.25)] flex items-center justify-center group-hover:border-amber-400/60 transition">
+                    <div className="absolute w-5 h-5 lg:w-6 lg:h-6 rounded-full bg-gradient-to-b from-[#34373e] via-[#1e2025] to-[#121316] border border-white/15 shadow-[0_2px_5px_rgba(0,0,0,0.8),inset_0_1px_0_rgba(255,255,255,0.25)] flex items-center justify-center group-hover:border-amber-400/60">
                       <div
-                        className={`absolute w-[1.5px] h-2 lg:h-2.5 rounded-full origin-bottom bottom-1/2 transition-all ${
+                        className={`absolute w-[1.5px] h-2 lg:h-2.5 rounded-full origin-bottom bottom-1/2 ${
                           isFxBypassed ? "bg-zinc-500 shadow-none" : "bg-amber-400 shadow-[0_0_6px_#fbbf24]"
                         }`}
                         style={{ transform: `rotate(${rotDeg}deg)` }}
