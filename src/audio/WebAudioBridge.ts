@@ -1,15 +1,23 @@
-import initWasm, { WasmEngine } from '../wasm/impact_wasm';
+import workletUrl from './worklet/ImpactAudioProcessor.ts?worker&url';
+import wasmUrl from '../wasm/impact_wasm_bg.wasm?url';
 import { StepResolution } from '../types/sampler';
 
 export class WebAudioBridge {
   private static instance: WebAudioBridge;
   private ctx: AudioContext | null = null;
-  private engine: WasmEngine | null = null;
-  private scriptNode: ScriptProcessorNode | null = null;
+  private workletNode: AudioWorkletNode | null = null;
   private isInitialized = false;
   private initializationPromise: Promise<void> | null = null;
   private currentSoundFontName: string = 'Ninguno';
   private hasLoggedProcessError = false;
+
+  // Cache optimista en hilo principal para respuesta sincrónica sin retardo de round-trip
+  private cachedStep: number = 0;
+  private cachedIsPlaying: boolean = false;
+  private cachedBank: 'a' | 'b' = 'a';
+  private cachedPattern: number[][] = Array.from({ length: 8 }, () => new Array(32).fill(0));
+  private stepListeners: Set<(step: number) => void> = new Set();
+  private soundFontLoadResolver: { resolve: () => void; reject: (err: Error) => void } | null = null;
 
   private constructor() {}
 
@@ -32,38 +40,89 @@ export class WebAudioBridge {
         const AudioContextClass = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
         this.ctx = new AudioContextClass({ latencyHint: 'interactive' });
 
-        // Inicializar módulo WebAssembly (Singleton)
-        await initWasm();
+        // 1. Pre-compilar el binario WebAssembly en el hilo principal
+        const wasmResponse = await fetch(wasmUrl);
+        const wasmBytes = await wasmResponse.arrayBuffer();
+        const wasmModule = await WebAssembly.compile(wasmBytes);
 
-        // Crear instancia del motor de audio en Rust
-        this.engine = new WasmEngine(this.ctx.sampleRate);
+        // 2. Cargar el módulo AudioWorkletProcessor compilado por Vite
+        await this.ctx.audioWorklet.addModule(workletUrl);
 
-        // Conectar el nodo de procesamiento de audio en tiempo real (buffer de 512 muestras ~10ms)
-        this.scriptNode = this.ctx.createScriptProcessor(512, 0, 2);
-        this.scriptNode.onaudioprocess = (e) => {
-          const left = e.outputBuffer.getChannelData(0);
-          const right = e.outputBuffer.getChannelData(1);
+        // 3. Crear el AudioWorkletNode pasando el WebAssembly.Module compilado
+        this.workletNode = new AudioWorkletNode(this.ctx, 'impact-audio-processor', {
+          numberOfInputs: 0,
+          numberOfOutputs: 1,
+          outputChannelCount: [2],
+          processorOptions: {
+            wasmModule,
+          },
+        });
 
-          // Si el motor no está instanciado o no hay SoundFont cargado, emitir silencio limpio
-          if (!this.engine || !this.currentSoundFontName || this.currentSoundFontName === 'Ninguno') {
-            left.fill(0);
-            right.fill(0);
-            return;
-          }
+        // Inicialización de respaldo en caso de que processorOptions no clone WebAssembly.Module
+        this.workletNode.port.postMessage({ type: 'INIT_WASM', wasmModule });
 
-          try {
-            this.engine.render(left, right);
-          } catch (err) {
-            left.fill(0);
-            right.fill(0);
-            if (!this.hasLoggedProcessError) {
-              console.error('Error no fatal en render de WebAssembly:', err);
-              this.hasLoggedProcessError = true;
-            }
+        // 4. Configurar receptor de mensajes de alta velocidad desde el hilo de audio
+        this.workletNode.port.onmessage = (event: MessageEvent) => {
+          const data = event.data;
+          if (!data) return;
+
+          switch (data.type) {
+            case 'SEQ_STEP_CHANGE':
+              this.cachedStep = data.step;
+              this.stepListeners.forEach((listener) => {
+                try {
+                  listener(data.step);
+                } catch {
+                  // Prevenir que errores en UI interrumpan el listener
+                }
+              });
+              break;
+
+            case 'SEQ_PLAY_STATE':
+              this.cachedIsPlaying = data.isPlaying;
+              break;
+
+            case 'SEQ_PATTERN_UPDATED':
+              if (data.pattern) {
+                this.cachedPattern = data.pattern;
+              }
+              break;
+
+            case 'SEQ_BANK_UPDATED':
+              if (data.bank) {
+                this.cachedBank = data.bank;
+              }
+              if (data.pattern) {
+                this.cachedPattern = data.pattern;
+              }
+              break;
+
+            case 'SOUNDFONT_LOADED':
+              if (this.soundFontLoadResolver) {
+                this.currentSoundFontName = data.name;
+                this.soundFontLoadResolver.resolve();
+                this.soundFontLoadResolver = null;
+              }
+              break;
+
+            case 'SOUNDFONT_ERROR':
+              if (this.soundFontLoadResolver) {
+                this.soundFontLoadResolver.reject(new Error(data.error));
+                this.soundFontLoadResolver = null;
+              }
+              break;
+
+            case 'WASM_ERROR':
+              if (!this.hasLoggedProcessError) {
+                console.error('Error en AudioWorklet WASM:', data.error);
+                this.hasLoggedProcessError = true;
+              }
+              break;
           }
         };
 
-        this.scriptNode.connect(this.ctx.destination);
+        // 5. Conectar el nodo de AudioWorklet directamente a los altavoces
+        this.workletNode.connect(this.ctx.destination);
         this.isInitialized = true;
       } catch (err) {
         this.initializationPromise = null;
@@ -83,93 +142,99 @@ export class WebAudioBridge {
 
   public async loadSoundFont(buffer: ArrayBuffer, name: string): Promise<void> {
     await this.initialize();
-    if (!this.engine) throw new Error('Motor de audio no inicializado');
+    if (!this.workletNode) throw new Error('Motor de audio no inicializado');
 
-    const bytes = new Uint8Array(buffer);
-    this.engine.load_soundfont(bytes);
-    this.currentSoundFontName = name;
-    this.hasLoggedProcessError = false;
+    return new Promise<void>((resolve, reject) => {
+      this.soundFontLoadResolver = { resolve, reject };
+      // Enviar el buffer al AudioWorklet (sin transferirlo para preservar almacenamiento IndexedDB)
+      this.workletNode!.port.postMessage({
+        type: 'LOAD_SOUNDFONT',
+        buffer,
+        name,
+      });
+      this.hasLoggedProcessError = false;
+    });
   }
 
   public noteOn(key: number, velocity: number = 127, channel: number = 0): void {
-    if (!this.engine || !this.currentSoundFontName || this.currentSoundFontName === 'Ninguno') return;
+    if (!this.workletNode || !this.currentSoundFontName || this.currentSoundFontName === 'Ninguno') return;
     this.resumeAudio();
-    this.engine.note_on(channel, key, velocity);
+    this.workletNode.port.postMessage({ type: 'NOTE_ON', key, velocity, channel });
   }
 
   public noteOff(key: number, channel: number = 0): void {
-    if (!this.engine || !this.currentSoundFontName || this.currentSoundFontName === 'Ninguno') return;
-    this.engine.note_off(channel, key);
+    if (!this.workletNode || !this.currentSoundFontName || this.currentSoundFontName === 'Ninguno') return;
+    this.workletNode.port.postMessage({ type: 'NOTE_OFF', key, channel });
   }
 
   public noteOffAll(immediate: boolean = false): void {
-    if (!this.engine) return;
-    this.engine.note_off_all(immediate);
+    if (!this.workletNode) return;
+    this.workletNode.port.postMessage({ type: 'NOTE_OFF_ALL', immediate });
   }
 
   public setKnob(knobIndex: number, value7bit: number): void {
-    if (!this.engine) return;
-    this.engine.set_knob(knobIndex, value7bit);
+    if (!this.workletNode) return;
+    this.workletNode.port.postMessage({ type: 'SET_KNOB', index: knobIndex, value: value7bit });
   }
 
   public setMasterFader(value7bit: number): void {
-    if (!this.engine) return;
-    this.engine.set_master_fader(value7bit);
+    if (!this.workletNode) return;
+    this.workletNode.port.postMessage({ type: 'SET_MASTER_FADER', value: value7bit });
   }
 
   public setFxRouting(routing: string): void {
-    if (!this.engine) return;
-    this.engine.set_fx_routing(routing);
+    if (!this.workletNode) return;
+    this.workletNode.port.postMessage({ type: 'SET_FX_ROUTING', routing });
   }
 
   public setPitchBend(bend: number, channel: number = 0): void {
-    if (!this.engine) return;
-    this.engine.set_pitch_bend(channel, bend);
+    if (!this.workletNode) return;
+    this.workletNode.port.postMessage({ type: 'SET_PITCH_BEND', bend, channel });
   }
 
   public setModWheel(value7bit: number, channel: number = 0): void {
-    if (!this.engine) return;
-    this.engine.set_mod_wheel(channel, value7bit);
+    if (!this.workletNode) return;
+    this.workletNode.port.postMessage({ type: 'SET_MOD_WHEEL', value: value7bit, channel });
   }
 
   public setProgram(patch: number, bank: number = 0, channel: number = 0): void {
-    if (!this.engine) return;
-    this.engine.set_program(channel, patch, bank);
+    if (!this.workletNode) return;
+    this.workletNode.port.postMessage({ type: 'SET_PROGRAM', patch, bank, channel });
   }
 
   public setBpm(bpm: number): void {
-    if (!this.engine) return;
-    this.engine.set_bpm(bpm);
+    if (!this.workletNode) return;
+    this.workletNode.port.postMessage({ type: 'SET_BPM', bpm });
   }
 
   public setArpEnabled(enabled: boolean): void {
-    if (!this.engine) return;
-    this.engine.set_arp_enabled(enabled);
+    if (!this.workletNode) return;
+    this.workletNode.port.postMessage({ type: 'SET_ARP_ENABLED', enabled });
   }
 
   public setArpHold(hold: boolean): void {
-    if (!this.engine) return;
-    this.engine.set_arp_hold(hold);
+    if (!this.workletNode) return;
+    this.workletNode.port.postMessage({ type: 'SET_ARP_HOLD', hold });
   }
 
   public setArpMode(mode: string): void {
-    if (!this.engine) return;
-    this.engine.set_arp_mode(mode);
+    if (!this.workletNode) return;
+    this.workletNode.port.postMessage({ type: 'SET_ARP_MODE', mode });
   }
 
   public setArpRate(rate: string): void {
-    if (!this.engine) return;
-    this.engine.set_arp_rate(rate);
+    if (!this.workletNode) return;
+    this.workletNode.port.postMessage({ type: 'SET_ARP_RATE', rate });
   }
 
   public setArpOctaves(octaves: number): void {
-    if (!this.engine) return;
-    this.engine.set_arp_octaves(octaves);
+    if (!this.workletNode) return;
+    this.workletNode.port.postMessage({ type: 'SET_ARP_OCTAVES', octaves });
   }
 
   public syncArpState(state: { enabled: boolean; hold: boolean; mode: string; rate: string; octaves: number }, bpm?: number): void {
-    if (!this.engine) return;
-    this.engine.update_arp_params(state.enabled, state.hold, state.mode, state.rate, state.octaves, bpm ?? 120.0);
+    if (!this.workletNode) return;
+    this.workletNode.port.postMessage({ type: 'SYNC_ARP', state, bpm });
   }
 
   public playMetronomeClick(accent: boolean = false): void {
@@ -194,79 +259,84 @@ export class WebAudioBridge {
     }
   }
 
-  // === Métodos del Secuenciador Rítmico (Bloque 4) ===
+  // === Métodos del Secuenciador Rítmico ===
 
   public seqPlay(): void {
-    if (!this.engine) return;
-    this.engine.seq_play();
+    this.cachedIsPlaying = true;
+    this.workletNode?.port.postMessage({ type: 'SEQ_PLAY' });
   }
 
   public seqPause(): void {
-    if (!this.engine) return;
-    this.engine.seq_pause();
+    this.cachedIsPlaying = false;
+    this.workletNode?.port.postMessage({ type: 'SEQ_PAUSE' });
   }
 
   public seqStop(): void {
-    if (!this.engine) return;
-    this.engine.seq_stop();
+    this.cachedIsPlaying = false;
+    this.cachedStep = 0;
+    this.workletNode?.port.postMessage({ type: 'SEQ_STOP' });
   }
 
   public seqTogglePlay(): boolean {
-    if (!this.engine) return false;
-    return this.engine.seq_toggle_play();
+    this.cachedIsPlaying = !this.cachedIsPlaying;
+    this.workletNode?.port.postMessage({ type: 'SEQ_TOGGLE_PLAY' });
+    return this.cachedIsPlaying;
   }
 
   public seqIsPlaying(): boolean {
-    if (!this.engine) return false;
-    return this.engine.seq_is_playing();
+    return this.cachedIsPlaying;
   }
 
   public seqGetCurrentStep(): number {
-    if (!this.engine) return 0;
-    return this.engine.seq_get_current_step();
+    return this.cachedStep;
   }
 
   public seqToggleStep(padIdx: number, stepIdx: number): number {
-    if (!this.engine) return 0;
-    return this.engine.seq_toggle_step(padIdx, stepIdx);
+    if (padIdx >= 0 && padIdx < 8 && stepIdx >= 0 && stepIdx < 32) {
+      const active = this.cachedPattern[padIdx][stepIdx] ? 0 : 100;
+      this.cachedPattern[padIdx][stepIdx] = active;
+      this.workletNode?.port.postMessage({ type: 'SEQ_TOGGLE_STEP', padIdx, stepIdx });
+      return active;
+    }
+    return 0;
   }
 
   public seqClearTrack(padIdx: number): void {
-    if (!this.engine) return;
-    this.engine.seq_clear_track(padIdx);
+    if (padIdx >= 0 && padIdx < 8) {
+      this.cachedPattern[padIdx].fill(0);
+      this.workletNode?.port.postMessage({ type: 'SEQ_CLEAR_TRACK', padIdx });
+    }
   }
 
   public seqClearAll(): void {
-    if (!this.engine) return;
-    this.engine.seq_clear_all();
+    for (let i = 0; i < 8; i++) {
+      this.cachedPattern[i].fill(0);
+    }
+    this.workletNode?.port.postMessage({ type: 'SEQ_CLEAR_ALL' });
   }
 
   public seqSetResolution(res: StepResolution): void {
-    if (!this.engine) return;
-    this.engine.seq_set_resolution(res);
+    this.workletNode?.port.postMessage({ type: 'SEQ_SET_RESOLUTION', resolution: res });
   }
 
   public seqToggleBank(): string {
-    if (!this.engine) return 'a';
-    return this.engine.seq_toggle_bank();
+    this.cachedBank = this.cachedBank === 'a' ? 'b' : 'a';
+    this.workletNode?.port.postMessage({ type: 'SEQ_TOGGLE_BANK' });
+    return this.cachedBank;
   }
 
   public seqUndo(): boolean {
-    if (!this.engine) return false;
-    return this.engine.seq_undo();
+    this.workletNode?.port.postMessage({ type: 'SEQ_UNDO' });
+    return true;
   }
 
   public seqGetPattern(): number[][] {
-    const grid: number[][] = Array.from({ length: 8 }, () => new Array(32).fill(0));
-    if (!this.engine) return grid;
+    return this.cachedPattern.map((row) => [...row]);
+  }
 
-    const flat = this.engine.seq_get_pattern_flat();
-    for (let pad = 0; pad < 8; pad++) {
-      for (let step = 0; step < 32; step++) {
-        grid[pad][step] = flat[pad * 32 + step];
-      }
-    }
-    return grid;
+  public onStepChange(callback: (step: number) => void): () => void {
+    this.stepListeners.add(callback);
+    return () => this.stepListeners.delete(callback);
   }
 
   public getSoundFontName(): string {
@@ -278,7 +348,7 @@ export class WebAudioBridge {
   }
 
   public isReady(): boolean {
-    return this.isInitialized && this.engine !== null;
+    return this.isInitialized && this.workletNode !== null;
   }
 }
 
