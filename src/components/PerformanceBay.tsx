@@ -106,6 +106,30 @@ export const PerformanceBay: React.FC<PerformanceBayProps> = ({
     else if (fxRouting === "keys") onChangeFxRouting("both");
   };
 
+  const getRateLabel = (rate: ArpRate): string => {
+    switch (rate) {
+      case "quarter":
+        return "1/4";
+      case "eighth":
+        return "1/8";
+      case "sixteenth":
+        return "1/16";
+      case "thirtySecond":
+        return "1/32";
+    }
+  };
+
+  const getModeLabel = (mode: ArpMode): string => {
+    switch (mode) {
+      case "up":
+        return "UP";
+      case "down":
+        return "DOWN";
+      case "upDown":
+        return "U/D";
+    }
+  };
+
   const isArpLearnSelected =
     isMidiLearnActive &&
     selectedLearnTarget?.type === "action" &&
@@ -213,75 +237,98 @@ export const PerformanceBay: React.FC<PerformanceBayProps> = ({
           ref={buttonRef}
           type="button"
           onClick={() => setIsPopoverOpen(!isPopoverOpen)}
-          className={`w-7 h-full flex items-center justify-center transition-all cursor-pointer ${
+          title="Ajustes del Arpegiador"
+          className={`w-7 h-full flex items-center justify-center shrink-0 transition-all cursor-pointer ${
             isPopoverOpen
-              ? "bg-white/15 text-white"
-              : "text-zinc-500 hover:text-zinc-200 hover:bg-[#24262d]"
+              ? "bg-[#24262d] text-emerald-300 shadow-[inset_0_0_8px_rgba(52,211,153,0.35)]"
+              : "text-zinc-500 hover:text-zinc-200 hover:bg-white/[0.04]"
           }`}
-          title="Ajustes de Arpegiador"
         >
           <Settings className="w-3.5 h-3.5" />
         </button>
       </div>
 
-      {/* Popover de Ajustes */}
+      {/* Popover Flotante de Ajustes Noir-Tech (anclado a la izquierda de la placa ARP) */}
       {isPopoverOpen && (
         <div
           ref={popoverRef}
-          className="absolute top-9 left-0 right-0 z-50 p-2.5 bg-[#121318] border border-white/15 rounded-lg shadow-2xl backdrop-blur-md flex flex-col gap-2 font-mono text-[10px]"
+          className="absolute right-full top-0 mr-2 z-50 w-56 bg-[#0c0d12] border border-white/10 rounded-xl shadow-[0_15px_35px_rgba(0,0,0,0.95)] p-2.5 font-mono text-zinc-300 animate-in fade-in zoom-in-95 duration-100 flex flex-col gap-2.5 backdrop-blur-md"
         >
-          <div className="flex items-center justify-between text-zinc-400 border-b border-white/10 pb-1">
-            <span>MODO</span>
-            <div className="flex gap-1">
+          <div className="flex items-center justify-between border-b border-white/[0.08] pb-1.5">
+            <span className="text-[9.5px] font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_#10b981]" />
+              Ajustes de Arpegiador
+            </span>
+            <span className="text-[8px] text-zinc-500 font-semibold uppercase">Teclado</span>
+          </div>
+
+          {/* Selector de Modo (3 Modos) */}
+          <div className="flex flex-col gap-1">
+            <span className="text-[8.5px] font-bold text-zinc-400 uppercase tracking-wide">
+              Modo de Patrón
+            </span>
+            <div className="grid grid-cols-3 gap-1 bg-black/40 p-0.5 rounded-md border border-white/[0.06]">
               {(["up", "down", "upDown"] as ArpMode[]).map((m) => (
                 <button
                   key={m}
                   type="button"
                   onMouseDown={(e) => e.preventDefault()}
                   onClick={() => updateArpState((p) => ({ ...p, mode: m }))}
-                  className={`px-1.5 py-0.5 rounded text-[9px] uppercase transition ${
-                    arpState.mode === m ? "bg-emerald-500/30 text-emerald-300 font-bold border border-emerald-500/40" : "text-zinc-500 hover:text-zinc-300"
+                  className={`py-1 text-[8.5px] font-bold rounded transition-all cursor-pointer ${
+                    arpState.mode === m
+                      ? "bg-emerald-500/20 text-emerald-300 border border-emerald-400/50 shadow-[0_0_6px_rgba(16,185,129,0.3)]"
+                      : "text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.04]"
                   }`}
                 >
-                  {m === "upDown" ? "U/D" : m}
+                  {getModeLabel(m)}
                 </button>
               ))}
             </div>
           </div>
 
-          <div className="flex items-center justify-between text-zinc-400 border-b border-white/10 pb-1">
-            <span>RATE</span>
-            <div className="flex gap-1">
+          {/* Selector de Rate (4 Divisiones Rectas) */}
+          <div className="flex flex-col gap-1">
+            <span className="text-[8.5px] font-bold text-zinc-400 uppercase tracking-wide">
+              División de Tempo (Rate)
+            </span>
+            <div className="grid grid-cols-4 gap-1 bg-black/40 p-0.5 rounded-md border border-white/[0.06]">
               {(["quarter", "eighth", "sixteenth", "thirtySecond"] as ArpRate[]).map((r) => (
                 <button
                   key={r}
                   type="button"
                   onMouseDown={(e) => e.preventDefault()}
                   onClick={() => updateArpState((p) => ({ ...p, rate: r }))}
-                  className={`px-1.5 py-0.5 rounded text-[9px] transition ${
-                    arpState.rate === r ? "bg-emerald-500/30 text-emerald-300 font-bold border border-emerald-500/40" : "text-zinc-500 hover:text-zinc-300"
+                  className={`py-1 text-[8.5px] font-bold rounded transition-all cursor-pointer ${
+                    arpState.rate === r
+                      ? "bg-emerald-500/20 text-emerald-300 border border-emerald-400/50 shadow-[0_0_6px_rgba(16,185,129,0.3)]"
+                      : "text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.04]"
                   }`}
                 >
-                  {r === "quarter" ? "1/4" : r === "eighth" ? "1/8" : r === "sixteenth" ? "1/16" : "1/32"}
+                  {getRateLabel(r)}
                 </button>
               ))}
             </div>
           </div>
 
-          <div className="flex items-center justify-between text-zinc-400">
-            <span>OCTAVAS</span>
-            <div className="flex gap-1">
+          {/* Selector de Octavas (1, 2, 3) */}
+          <div className="flex flex-col gap-1">
+            <span className="text-[8.5px] font-bold text-zinc-400 uppercase tracking-wide">
+              Rango de Octavas
+            </span>
+            <div className="grid grid-cols-3 gap-1 bg-black/40 p-0.5 rounded-md border border-white/[0.06]">
               {[1, 2, 3].map((oct) => (
                 <button
                   key={oct}
                   type="button"
                   onMouseDown={(e) => e.preventDefault()}
                   onClick={() => updateArpState((p) => ({ ...p, octaves: oct }))}
-                  className={`px-2 py-0.5 rounded text-[9px] transition ${
-                    arpState.octaves === oct ? "bg-emerald-500/30 text-emerald-300 font-bold border border-emerald-500/40" : "text-zinc-500 hover:text-zinc-300"
+                  className={`py-1 text-[8.5px] font-bold rounded transition-all cursor-pointer ${
+                    arpState.octaves === oct
+                      ? "bg-emerald-500/20 text-emerald-300 border border-emerald-400/50 shadow-[0_0_6px_rgba(16,185,129,0.3)]"
+                      : "text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.04]"
                   }`}
                 >
-                  {oct}
+                  {oct} {oct === 1 ? "OCT" : "OCTS"}
                 </button>
               ))}
             </div>
