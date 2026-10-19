@@ -525,12 +525,42 @@ export const App: React.FC = () => {
     return unsub;
   }, []);
 
-  const handleStartAudio = async () => {
-    await audioBridge.initialize();
-    await audioBridge.resumeAudio();
-    audioBridge.syncArpState(arpState, bpm);
-    setIsAudioStarted(true);
-  };
+
+
+  // Auto-activación inmediata del motor de audio ante la carga y ante cualquier primera interacción
+  useEffect(() => {
+    const activateAudio = async () => {
+      try {
+        await audioBridge.initialize();
+        await audioBridge.resumeAudio();
+        audioBridge.syncArpState(arpState, bpm);
+        setIsAudioStarted(true);
+      } catch (err) {
+        console.warn('Audio auto-activation notice:', err);
+      }
+    };
+
+    // Intentar activación directa
+    activateAudio();
+
+    // Despertar ante la primera interacción (táctil, click o teclado en cualquier punto de la ventana)
+    const onUserInteraction = () => {
+      activateAudio();
+      window.removeEventListener('pointerdown', onUserInteraction);
+      window.removeEventListener('keydown', onUserInteraction);
+      window.removeEventListener('touchstart', onUserInteraction);
+    };
+
+    window.addEventListener('pointerdown', onUserInteraction, { passive: true });
+    window.addEventListener('keydown', onUserInteraction, { passive: true });
+    window.addEventListener('touchstart', onUserInteraction, { passive: true });
+
+    return () => {
+      window.removeEventListener('pointerdown', onUserInteraction);
+      window.removeEventListener('keydown', onUserInteraction);
+      window.removeEventListener('touchstart', onUserInteraction);
+    };
+  }, [arpState, bpm]);
 
   const handleFileDrop = async (e: React.DragEvent) => {
     e.preventDefault();
@@ -633,6 +663,12 @@ export const App: React.FC = () => {
             await audioBridge.initialize();
             await audioBridge.loadSoundFont(stored.data, stored.filename);
 
+            // Sincronizar DSP y Arpegiador en WASM
+            knobs.forEach((val, idx) => audioBridge.setKnob(idx, val));
+            audioBridge.setMasterFader(faders[8]);
+            audioBridge.setFxRouting(fxRouting);
+            audioBridge.syncArpState(arpState, bpm);
+
             const presets = parseSf2Presets(stored.data);
             const sfInfo: SoundFontInfo = {
               id: stored.id,
@@ -644,6 +680,8 @@ export const App: React.FC = () => {
               presets,
             };
             setCurrentSoundfont(sfInfo);
+            setActivePresetIndex(0);
+            setIsAudioStarted(true);
             if (!stored.filename.toLowerCase().includes('rx7')) {
               lastMelodicSoundfontRef.current = sfInfo;
               setWorkstationMode('keys');
@@ -911,6 +949,10 @@ export const App: React.FC = () => {
     if (!currentSoundfont) {
       setIsInstrumentModalOpen(true);
       return;
+    }
+    if (!isAudioStarted) {
+      audioBridge.resumeAudio();
+      setIsAudioStarted(true);
     }
     audioBridge.noteOn(note, velocity);
     setVisualKeyActive(note, true);
@@ -1182,7 +1224,6 @@ export const App: React.FC = () => {
         onClearMidiEvents={() => setMidiEvents([])}
         midiDevices={midiDevices}
         isAudioStarted={isAudioStarted}
-        onStartAudio={handleStartAudio}
         audioSampleRate={audioBridge.getAudioContext()?.sampleRate || 48000}
         audioLatencyMs={(audioBridge.getAudioContext()?.baseLatency || 0.005) * 1000}
         masterGain={faders[8] / 127}

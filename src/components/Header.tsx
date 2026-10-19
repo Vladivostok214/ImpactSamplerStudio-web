@@ -23,7 +23,6 @@ interface HeaderProps {
   onClearMidiEvents?: () => void;
   midiDevices?: string[];
   isAudioStarted: boolean;
-  onStartAudio: () => void;
   audioSampleRate?: number;
   audioLatencyMs?: number;
   masterGain: number; // 0..1
@@ -42,7 +41,6 @@ export const Header: React.FC<HeaderProps> = ({
   onClearMidiEvents,
   midiDevices = [],
   isAudioStarted,
-  onStartAudio,
   audioSampleRate = 48000,
   audioLatencyMs = 5.3,
   masterGain = 0.8,
@@ -202,18 +200,6 @@ export const Header: React.FC<HeaderProps> = ({
 
         {/* Lado Derecho: Live MIDI DIN Popover + QWERTY + MIDI Learn + Master Volume */}
         <div className="flex items-center space-x-2">
-          {/* Botón de Activación de Audio (si no está iniciado) */}
-          {!isAudioStarted && (
-            <button
-              type="button"
-              onClick={onStartAudio}
-              className="px-2.5 py-1 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-[11px] tracking-wider uppercase transition shadow-lg shadow-emerald-500/25 active:scale-95 flex items-center gap-1.5 cursor-pointer shrink-0"
-              title="Iniciar motor de Web Audio"
-            >
-              <Volume2 className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Activar Audio</span>
-            </button>
-          )}
-
           {/* Live MIDI Stream Popover Trigger (Icono DIN-5) */}
           <div className="relative">
             <button
