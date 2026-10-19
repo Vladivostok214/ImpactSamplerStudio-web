@@ -67,6 +67,18 @@ export const StudioAssistantAvatar: React.FC<StudioAssistantAvatarProps> = ({
     return () => window.removeEventListener('mousemove', handleMouseMove);
   }, []);
 
+  // Cerrar con tecla Escape
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setIsOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen]);
+
   // Búsqueda Semántica con NLP y Puntuación de Relevancia (0 ms de latencia)
   const searchResults: ScoredFaqItem[] = useMemo(() => {
     return searchFaqSemantic(searchQuery, activeCategory, FAQ_DATABASE);
@@ -191,7 +203,7 @@ export const StudioAssistantAvatar: React.FC<StudioAssistantAvatarProps> = ({
             className="hidden sm:flex items-center gap-2 px-3 py-2 rounded-xl bg-zinc-950/90 border border-emerald-500/40 shadow-[0_4px_20px_rgba(16,185,129,0.25)] text-xs text-zinc-300 font-mono backdrop-blur-md cursor-pointer animate-in fade-in slide-in-from-right-4 duration-300 hover:border-emerald-400"
           >
             <Sparkles className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-            <span>¿Tienes dudas de configuración? Haz clic aquí</span>
+            <span>¿Tienes dudas? Pregúntale a Vostok</span>
             <button
               onClick={(e) => {
                 e.stopPropagation();
@@ -218,7 +230,7 @@ export const StudioAssistantAvatar: React.FC<StudioAssistantAvatarProps> = ({
               ? 'bg-emerald-950 border-2 border-emerald-400 shadow-[0_0_25px_rgba(16,185,129,0.65)] scale-105'
               : 'bg-zinc-950/90 border border-emerald-500/40 hover:border-emerald-400 shadow-[0_0_20px_rgba(16,185,129,0.3)] hover:shadow-[0_0_30px_rgba(16,185,129,0.5)] backdrop-blur-md'
           }`}
-          title="Asistente de Estudio y Configuración"
+          title="Asistente Vostok"
         >
           {/* Anillo de pulso sutil cuando está cerrado */}
           {!isOpen && (
@@ -229,7 +241,7 @@ export const StudioAssistantAvatar: React.FC<StudioAssistantAvatarProps> = ({
           <div className="relative z-10 flex flex-col items-center">
             {renderEyes('sm')}
             <span className="text-[8px] font-mono font-bold tracking-widest text-emerald-400/90 mt-0.5">
-              COPILOT
+              VOSTOK
             </span>
           </div>
         </button>
@@ -251,10 +263,10 @@ export const StudioAssistantAvatar: React.FC<StudioAssistantAvatarProps> = ({
                 <div>
                   <div className="flex items-center gap-2">
                     <h3 className="text-sm font-bold tracking-wide text-white font-mono">
-                      IMPACT <span className="text-emerald-400">COPILOT</span>
+                      IMPACT <span className="text-emerald-400">VOSTOK</span>
                     </h3>
                     <span className="px-1.5 py-0.5 rounded text-[9px] font-mono bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                      OFFLINE FAQ
+                      STUDIO AI
                     </span>
                   </div>
                   <p className="text-[11px] text-zinc-400 mt-0.5 font-sans">
@@ -280,8 +292,8 @@ export const StudioAssistantAvatar: React.FC<StudioAssistantAvatarProps> = ({
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="¿Cómo cambiar de octava, grabar batería, activar delay, conectar MIDI...?"
-                  className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-black/60 border border-white/10 focus:border-emerald-500/60 focus:outline-none focus:ring-1 focus:ring-emerald-500/50 text-xs font-mono text-white placeholder:text-zinc-600 transition"
+                  placeholder="¿Qué necesitas saber? Escribe tu consulta..."
+                  className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-black/60 border border-white/10 focus:border-emerald-500/60 focus:outline-none focus:ring-1 focus:ring-emerald-500/50 text-xs font-mono text-white placeholder:text-zinc-500 transition"
                   autoFocus
                 />
                 {searchQuery && (
@@ -319,104 +331,172 @@ export const StudioAssistantAvatar: React.FC<StudioAssistantAvatarProps> = ({
               </div>
             </div>
 
-            {/* Lista de Preguntas y Respuestas */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-2.5 custom-scrollbar">
-              {searchResults.length === 0 ? (
+            {/* Contenido Principal: ¿Qué necesitas saber? o Lista de Resultados */}
+            <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
+              {!searchQuery.trim() && activeCategory === 'all' ? (
+                /* Pantalla Inicial Limpia: ¿Qué necesitas saber? */
+                <div className="py-8 px-4 flex flex-col items-center justify-center text-center animate-in fade-in zoom-in-95 duration-200">
+                  <div className="w-16 h-16 rounded-2xl bg-black/90 border border-emerald-500/40 flex items-center justify-center shadow-[0_0_25px_rgba(16,185,129,0.25)] mb-3">
+                    {renderEyes('lg')}
+                  </div>
+
+                  <h3 className="text-base sm:text-lg font-bold font-mono text-white tracking-wide">
+                    ¿Qué necesitas saber?
+                  </h3>
+                  <p className="text-xs text-zinc-400 mt-1.5 max-w-sm font-sans">
+                    Escribe tu consulta en el buscador de arriba o selecciona un tema frecuente para ver la respuesta:
+                  </p>
+
+                  {/* Sugerencias Rápidas */}
+                  <div className="mt-5 w-full max-w-lg flex flex-col gap-2">
+                    <span className="text-[10px] font-mono uppercase tracking-wider text-zinc-500 text-left px-1">
+                      Temas frecuentes:
+                    </span>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-left">
+                      {[
+                        { text: '¿Cómo tocar con el teclado de la PC?', query: 'teclado' },
+                        { text: '¿Cómo grabar patrones de batería?', query: 'grabar' },
+                        { text: '¿Cómo conectar mi teclado MIDI?', query: 'midi' },
+                        { text: '¿Cómo asignar controles con MIDI Learn?', query: 'learn' },
+                        { text: '¿Cómo aplicar Delay y Reverb?', query: 'efectos' },
+                        { text: '¿Cómo cambiar o descargar instrumentos?', query: 'instrumento' },
+                      ].map((sug, i) => (
+                        <button
+                          key={i}
+                          type="button"
+                          onClick={() => setSearchQuery(sug.query)}
+                          className="p-2.5 rounded-xl bg-white/[0.03] hover:bg-emerald-950/30 border border-white/5 hover:border-emerald-500/40 text-xs text-zinc-300 hover:text-emerald-300 font-mono transition-all flex items-center justify-between group shadow-sm text-left"
+                        >
+                          <span className="truncate pr-1 text-[11px]">{sug.text}</span>
+                          <ChevronRight className="w-3.5 h-3.5 text-zinc-600 group-hover:text-emerald-400 shrink-0 transition-transform group-hover:translate-x-0.5" />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              ) : searchResults.length === 0 ? (
                 <div className="py-12 flex flex-col items-center justify-center text-center">
                   <HelpCircle className="w-8 h-8 text-zinc-600 mb-2" />
                   <p className="text-sm font-mono text-zinc-400">No encontramos respuestas para esa pregunta</p>
                   <p className="text-xs text-zinc-600 mt-1 max-w-sm">
                     Intenta preguntar de otra forma como "¿cómo activo el secuenciador?", "¿cómo cambio de octava?" o "¿cómo conectar MIDI?".
                   </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSearchQuery('');
+                      setActiveCategory('all');
+                    }}
+                    className="mt-4 px-3 py-1.5 rounded-lg bg-white/[0.05] hover:bg-white/10 border border-white/10 text-xs font-mono text-zinc-300 hover:text-white transition"
+                  >
+                    Volver a inicio
+                  </button>
                 </div>
               ) : (
-                searchResults.map(({ item: faq, isBestMatch }) => {
-                  const isExpanded = expandedFaqId === faq.id;
-                  return (
-                    <div
-                      key={faq.id}
-                      className={`rounded-xl border transition-all duration-200 overflow-hidden ${
-                        isBestMatch && searchQuery.trim()
-                          ? 'bg-emerald-950/20 border-emerald-500/50 shadow-[0_0_20px_rgba(16,185,129,0.12)]'
-                          : isExpanded
-                          ? 'bg-zinc-900/50 border-emerald-500/40 shadow-[0_0_15px_rgba(16,185,129,0.08)]'
-                          : 'bg-zinc-950/40 border-white/5 hover:border-white/10 hover:bg-zinc-900/30'
-                      }`}
+                <div className="space-y-2.5">
+                  <div className="flex items-center justify-between px-1 mb-1">
+                    <span className="text-[10px] font-mono text-zinc-400">
+                      {searchResults.length} {searchResults.length === 1 ? 'tema encontrado' : 'temas encontrados'}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSearchQuery('');
+                        setActiveCategory('all');
+                      }}
+                      className="text-[10px] font-mono text-emerald-400/80 hover:text-emerald-300 underline"
                     >
-                      {/* Cabecera del ítem */}
-                      <button
-                        type="button"
-                        onClick={() => setExpandedFaqId(isExpanded ? null : faq.id)}
-                        className="w-full px-4 py-3 text-left flex items-start justify-between gap-3"
+                      ← Volver a inicio
+                    </button>
+                  </div>
+                  {searchResults.map(({ item: faq, isBestMatch }) => {
+                    const isExpanded = expandedFaqId === faq.id;
+                    return (
+                      <div
+                        key={faq.id}
+                        className={`rounded-xl border transition-all duration-200 overflow-hidden ${
+                          isBestMatch && searchQuery.trim()
+                            ? 'bg-emerald-950/20 border-emerald-500/50 shadow-[0_0_20px_rgba(16,185,129,0.12)]'
+                            : isExpanded
+                            ? 'bg-zinc-900/50 border-emerald-500/40 shadow-[0_0_15px_rgba(16,185,129,0.08)]'
+                            : 'bg-zinc-950/40 border-white/5 hover:border-white/10 hover:bg-zinc-900/30'
+                        }`}
                       >
-                        <div>
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className="text-[9px] font-mono uppercase tracking-wider text-emerald-400/80 block">
-                              {faq.categoryLabel}
-                            </span>
-                            {isBestMatch && searchQuery.trim().length >= 3 && (
-                              <span className="px-1.5 py-0.2 rounded text-[8px] font-mono bg-emerald-500 text-black font-black uppercase tracking-wider shadow-[0_0_6px_#10b981] flex items-center gap-0.5">
-                                <Sparkles className="w-2.5 h-2.5" />
-                                <span>Mejor Coincidencia</span>
+                        {/* Cabecera del ítem */}
+                        <button
+                          type="button"
+                          onClick={() => setExpandedFaqId(isExpanded ? null : faq.id)}
+                          className="w-full px-4 py-3 text-left flex items-start justify-between gap-3"
+                        >
+                          <div>
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="text-[9px] font-mono uppercase tracking-wider text-emerald-400/80 block">
+                                {faq.categoryLabel}
                               </span>
+                              {isBestMatch && searchQuery.trim().length >= 3 && (
+                                <span className="px-1.5 py-0.2 rounded text-[8px] font-mono bg-emerald-500 text-black font-black uppercase tracking-wider shadow-[0_0_6px_#10b981] flex items-center gap-0.5">
+                                  <Sparkles className="w-2.5 h-2.5" />
+                                  <span>Mejor Coincidencia</span>
+                                </span>
+                              )}
+                            </div>
+                            <h4 className="text-xs font-semibold text-white tracking-wide">
+                              {faq.question}
+                            </h4>
+                            {!isExpanded && (
+                              <p className="text-[11px] text-zinc-400 mt-1 line-clamp-1">
+                                {faq.shortAnswer}
+                              </p>
                             )}
                           </div>
-                          <h4 className="text-xs font-semibold text-white tracking-wide">
-                            {faq.question}
-                          </h4>
-                          {!isExpanded && (
-                            <p className="text-[11px] text-zinc-400 mt-1 line-clamp-1">
+                          <ChevronRight
+                            className={`w-4 h-4 text-zinc-500 mt-1 shrink-0 transition-transform duration-200 ${
+                              isExpanded ? 'rotate-90 text-emerald-400' : ''
+                            }`}
+                          />
+                        </button>
+
+                        {/* Detalles desplegables */}
+                        {isExpanded && (
+                          <div className="px-4 pb-4 pt-1 border-t border-white/5 text-xs text-zinc-300 space-y-2 animate-in fade-in duration-150">
+                            <p className="text-emerald-300/90 font-medium font-sans">
                               {faq.shortAnswer}
                             </p>
-                          )}
-                        </div>
-                        <ChevronRight
-                          className={`w-4 h-4 text-zinc-500 mt-1 shrink-0 transition-transform duration-200 ${
-                            isExpanded ? 'rotate-90 text-emerald-400' : ''
-                          }`}
-                        />
-                      </button>
 
-                      {/* Detalles desplegables */}
-                      {isExpanded && (
-                        <div className="px-4 pb-4 pt-1 border-t border-white/5 text-xs text-zinc-300 space-y-2 animate-in fade-in duration-150">
-                          <p className="text-emerald-300/90 font-medium font-sans">
-                            {faq.shortAnswer}
-                          </p>
+                            <ul className="space-y-1.5 mt-2 bg-black/40 p-3 rounded-lg border border-white/5 font-mono text-[11px]">
+                              {faq.detailedSteps.map((step, idx) => (
+                                <li key={idx} className="flex items-start gap-2 text-zinc-300">
+                                  <span className="text-emerald-400 shrink-0 mt-0.5">•</span>
+                                  <span>{step}</span>
+                                </li>
+                              ))}
+                            </ul>
 
-                          <ul className="space-y-1.5 mt-2 bg-black/40 p-3 rounded-lg border border-white/5 font-mono text-[11px]">
-                            {faq.detailedSteps.map((step, idx) => (
-                              <li key={idx} className="flex items-start gap-2 text-zinc-300">
-                                <span className="text-emerald-400 shrink-0 mt-0.5">•</span>
-                                <span>{step}</span>
-                              </li>
-                            ))}
-                          </ul>
-
-                          {/* Botón de acción interactiva si existe */}
-                          {faq.action && (
-                            <div className="pt-2 flex justify-end">
-                              <button
-                                type="button"
-                                onClick={() => handleExecuteAction(faq.action!.type)}
-                                className="px-3 py-1.5 rounded-lg bg-emerald-500 text-black font-mono font-bold text-[11px] hover:bg-emerald-400 transition shadow-[0_0_12px_rgba(16,185,129,0.3)] flex items-center gap-1.5"
-                              >
-                                <span>{faq.action.label}</span>
-                                <ChevronRight className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })
+                            {/* Botón de acción interactiva si existe */}
+                            {faq.action && (
+                              <div className="pt-2 flex justify-end">
+                                <button
+                                  type="button"
+                                  onClick={() => handleExecuteAction(faq.action!.type)}
+                                  className="px-3 py-1.5 rounded-lg bg-emerald-500 text-black font-mono font-bold text-[11px] hover:bg-emerald-400 transition shadow-[0_0_12px_rgba(16,185,129,0.3)] flex items-center gap-1.5"
+                                >
+                                  <span>{faq.action.label}</span>
+                                  <ChevronRight className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
               )}
             </div>
 
             {/* Pie del Asistente */}
             <div className="px-5 py-3 border-t border-white/10 bg-zinc-950/80 flex items-center justify-between text-[10px] font-mono text-zinc-500">
-              <span>{searchResults.length} temas encontrados</span>
+              <span>VOSTOK Studio AI Assistant</span>
               <span className="text-zinc-600">Presiona [Esc] para cerrar</span>
             </div>
           </div>
