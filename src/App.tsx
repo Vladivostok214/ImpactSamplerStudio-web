@@ -11,7 +11,7 @@ import { InstrumentSelectModal, FactoryInstrumentDef, FACTORY_INSTRUMENTS } from
 import { SoundFontStorage } from './storage/SoundFontStorage';
 import { OrientationGuard } from './components/OrientationGuard';
 import { StudioAssistantAvatar } from './components/StudioAssistantAvatar';
-import { setVisualKeyActive, clearAllVisualKeys } from './utils/visualKeys';
+import { setVisualKeyActive, clearAllVisualKeys, setVisualPadActive } from './utils/visualKeys';
 import { parseSf2Presets } from './utils/sf2Parser';
 import {
   MidiLearnTarget,
@@ -221,7 +221,7 @@ export const App: React.FC = () => {
   const [selectedLearnTarget, setSelectedLearnTarget] = useState<MidiLearnTarget | null>(null);
   const [midiLearnMapping, setMidiLearnMapping] = useState<MidiLearnMapping>(loadSavedMidiMapping);
   const [lastLearnedInfo, setLastLearnedInfo] = useState<{ label: string; detail: string } | null>(null);
-  const [activePads, setActivePads] = useState<Set<number>>(new Set());
+  const [activePads] = useState<Set<number>>(new Set());
 
   const learnStateRef = useRef({
     isActive: isMidiLearnActive,
@@ -456,10 +456,10 @@ export const App: React.FC = () => {
         // 2. Iluminación visual de teclas de piano
         setVisualKeyActive(note, true);
 
-        // 3. Iluminación y disparo de Pad si coincide con mapping.pads
+        // 3. Iluminación directa de Pad en DOM (0 re-renders de React)
         for (let pIdx = 0; pIdx < 8; pIdx++) {
           if (mapping.pads[pIdx] === note) {
-            setActivePads((prev) => new Set([...prev, pIdx + 1]));
+            setVisualPadActive(pIdx, true);
             break;
           }
         }
@@ -469,11 +469,7 @@ export const App: React.FC = () => {
 
         for (let pIdx = 0; pIdx < 8; pIdx++) {
           if (mapping.pads[pIdx] === note) {
-            setActivePads((prev) => {
-              const next = new Set(prev);
-              next.delete(pIdx + 1);
-              return next;
-            });
+            setVisualPadActive(pIdx, false);
             break;
           }
         }
@@ -636,15 +632,10 @@ export const App: React.FC = () => {
     };
   }, []);
 
-  // Enlace sample-accurate del metrónomo acústico y playhead del secuenciador
+  // Enlace sample-accurate del metrónomo acústico (el playhead visual se actualiza directo en DOM en StepSequencer con 0 re-renders)
   useEffect(() => {
     const unsub = audioBridge.onStepChange((step) => {
       latestStepRef.current = step;
-
-      // Solo re-renderizar por cambio de paso cuando la vista del secuenciador ('seq') está visible
-      if (workstationModeRef.current === 'seq') {
-        setSequencerState((prev) => (prev.currentStep !== step ? { ...prev, currentStep: step } : prev));
-      }
 
       // En resolución de semicorcheas (16th): 4 pasos por beat (pasos 0, 4, 8, 12, 16, 20, 24, 28)
       if (step % 4 === 0 && isMetronomeActiveRef.current) {
@@ -1539,20 +1530,16 @@ export const App: React.FC = () => {
   const handleSequencerTriggerPad = (padIdx: number) => {
     const drumNotes = [36, 38, 42, 46, 41, 45, 49, 51];
     const note = midiLearnMapping.pads[padIdx] ?? drumNotes[padIdx] ?? 36;
-    setActivePads((prev) => new Set([...prev, padIdx + 1]));
+    setVisualPadActive(padIdx, true);
     setTimeout(() => {
-      setActivePads((prev) => {
-        const next = new Set(prev);
-        next.delete(padIdx + 1);
-        return next;
-      });
-    }, 120);
+      setVisualPadActive(padIdx, false);
+    }, 110);
     if (!isAudioStarted) {
       audioBridge.resumeAudio();
       setIsAudioStarted(true);
     }
     audioBridge.noteOn(note, 127, 0, 'drum');
-    setTimeout(() => audioBridge.noteOff(note, 0, 'drum'), 120);
+    setTimeout(() => audioBridge.noteOff(note, 0, 'drum'), 110);
   };
 
   const tapTimesRef = useRef<number[]>([]);
@@ -1731,67 +1718,70 @@ export const App: React.FC = () => {
       {/* Contenido Principal: Consola Flotante Centrada Ergonómicamente */}
       <main className="flex-1 p-1 sm:p-1.5 lg:py-3 lg:px-4 flex flex-col justify-center items-center relative z-10 my-auto safe-horizontal">
         <div className="studio-console flex flex-col w-full max-w-6xl my-auto transition-all duration-200">
-          <HardwareSkeleton
-            faders={faders}
-            knobs={knobs}
-            pitchBend={pitchBend}
-            modWheel={modWheel}
-            availableSoundfonts={availableSoundfonts}
-            currentSoundfont={currentSoundfont}
-            activePresetIndex={activePresetIndex}
-            onSelectSoundfont={handleSelectSoundfont}
-            onSelectPreset={handleSelectPreset}
-            isDownloading={!!downloadingId}
-            downloadProgress={downloadingId ? (downloadProgress[downloadingId] ?? 0) : null}
-            fxRouting={fxRouting}
-            onChangeFxRouting={handleChangeFxRouting}
-            arpState={arpState}
-            onChangeArpState={handleChangeArpState}
-            isMidiLearnActive={isMidiLearnActive}
-            selectedLearnTarget={selectedLearnTarget}
-            onSelectLearnTarget={setSelectedLearnTarget}
-            midiLearnMapping={midiLearnMapping}
-            onTriggerNote={handleTriggerNote}
-            onReleaseNote={handleReleaseNote}
-            onChangeFader={handleChangeFader}
-            onChangeKnob={handleChangeKnob}
-            onChangePitchBend={handleChangePitchBend}
-            onChangeModWheel={handleChangeModWheel}
-            hideKeyboard={workstationMode === 'seq'}
-            qwertyEnabled={qwertyEnabled}
-            qwertyOctaveOffset={octaveOffset}
-          >
-            <StepSequencer
-              viewMode={workstationMode}
-              onChangeViewMode={handleChangeWorkstationMode}
-              sequencerState={sequencerState}
-              activePads={activePads}
+          <div className="bg-[#050508] border border-white/[0.12] rounded-xl lg:rounded-2xl shadow-[0_20px_60px_rgba(0,0,0,0.95),0_0_1px_1px_rgba(255,255,255,0.06),inset_0_1px_0_0_rgba(255,255,255,0.1)] flex flex-col overflow-hidden select-none transition-all duration-200 w-full">
+            <HardwareSkeleton
+              faders={faders}
+              knobs={knobs}
+              pitchBend={pitchBend}
+              modWheel={modWheel}
+              availableSoundfonts={availableSoundfonts}
+              currentSoundfont={currentSoundfont}
+              activePresetIndex={activePresetIndex}
+              onSelectSoundfont={handleSelectSoundfont}
+              onSelectPreset={handleSelectPreset}
+              isDownloading={!!downloadingId}
+              downloadProgress={downloadingId ? (downloadProgress[downloadingId] ?? 0) : null}
+              fxRouting={fxRouting}
+              onChangeFxRouting={handleChangeFxRouting}
+              arpState={arpState}
+              onChangeArpState={handleChangeArpState}
               isMidiLearnActive={isMidiLearnActive}
               selectedLearnTarget={selectedLearnTarget}
               onSelectLearnTarget={setSelectedLearnTarget}
               midiLearnMapping={midiLearnMapping}
-              onTriggerPad={handleSequencerTriggerPad}
-              onTogglePlay={handleTogglePlay}
-              onStop={handleStop}
-              onToggleRecord={handleToggleRecord}
-              bpm={bpm}
-              onSetBpm={handleSetBpm}
-              onAdjustBpm={handleChangeBpm}
-              onTapTempo={handleTapTempo}
-              onToggleStep={handleSequencerToggleStep}
-              onClearTrack={handleSequencerClearTrack}
-              onClearAll={handleSequencerClearAll}
-              onChangeResolution={handleSequencerChangeResolution}
-              onToggleBank={handleSequencerToggleBank}
-              onUndo={handleSequencerUndo}
-              isClickEnabled={isMetronomeActive}
-              onToggleClick={handleToggleMetronome}
-              quantizeMode={sequencerState.quantizeMode}
-              quantizeStrength={sequencerState.quantizeStrength}
-              onSetQuantizeMode={(mode) => setSequencerState((prev) => ({ ...prev, quantizeMode: mode }))}
-              onSetQuantizeStrength={(str) => setSequencerState((prev) => ({ ...prev, quantizeStrength: str }))}
+              onTriggerNote={handleTriggerNote}
+              onReleaseNote={handleReleaseNote}
+              onChangeFader={handleChangeFader}
+              onChangeKnob={handleChangeKnob}
+              onChangePitchBend={handleChangePitchBend}
+              onChangeModWheel={handleChangeModWheel}
+              hideKeyboard={workstationMode === 'seq'}
+              qwertyEnabled={qwertyEnabled}
+              qwertyOctaveOffset={octaveOffset}
             />
-          </HardwareSkeleton>
+            <div className="relative z-40">
+              <StepSequencer
+                viewMode={workstationMode}
+                onChangeViewMode={handleChangeWorkstationMode}
+                sequencerState={sequencerState}
+                activePads={activePads}
+                isMidiLearnActive={isMidiLearnActive}
+                selectedLearnTarget={selectedLearnTarget}
+                onSelectLearnTarget={setSelectedLearnTarget}
+                midiLearnMapping={midiLearnMapping}
+                onTriggerPad={handleSequencerTriggerPad}
+                onTogglePlay={handleTogglePlay}
+                onStop={handleStop}
+                onToggleRecord={handleToggleRecord}
+                bpm={bpm}
+                onSetBpm={handleSetBpm}
+                onAdjustBpm={handleChangeBpm}
+                onTapTempo={handleTapTempo}
+                onToggleStep={handleSequencerToggleStep}
+                onClearTrack={handleSequencerClearTrack}
+                onClearAll={handleSequencerClearAll}
+                onChangeResolution={handleSequencerChangeResolution}
+                onToggleBank={handleSequencerToggleBank}
+                onUndo={handleSequencerUndo}
+                isClickEnabled={isMetronomeActive}
+                onToggleClick={handleToggleMetronome}
+                quantizeMode={sequencerState.quantizeMode}
+                quantizeStrength={sequencerState.quantizeStrength}
+                onSetQuantizeMode={(mode) => setSequencerState((prev) => ({ ...prev, quantizeMode: mode }))}
+                onSetQuantizeStrength={(str) => setSequencerState((prev) => ({ ...prev, quantizeStrength: str }))}
+              />
+            </div>
+          </div>
         </div>
       </main>
 

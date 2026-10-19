@@ -20,6 +20,7 @@ import {
   getMidiNoteName,
   getActionMappingLabel,
 } from "../types/midiLearn";
+import { audioBridge } from "../audio/WebAudioBridge";
 
 interface StepSequencerProps {
   viewMode?: "keys" | "seq";
@@ -208,8 +209,39 @@ export const StepSequencer: React.FC<StepSequencerProps> = React.memo(({
   const kitMenuRef = useRef<HTMLDivElement>(null);
   const gridMenuRef = useRef<HTMLDivElement>(null);
   const qMenuRef = useRef<HTMLDivElement>(null);
+  const seqGridRef = useRef<HTMLDivElement>(null);
 
   const { isPlaying, isPaused, isRecording, currentStep, resolution, currentBank, pattern } = sequencerState;
+  const isSeqOpen = viewMode === "seq";
+
+  // Actualización del Playhead directo en DOM (0 Re-renders de React en cada semicorchea/fusa)
+  useEffect(() => {
+    const applyDomPlayhead = (step: number | null) => {
+      const container = seqGridRef.current;
+      if (!container) return;
+      const prevEls = container.querySelectorAll('[data-playhead="true"]');
+      for (let i = 0; i < prevEls.length; i++) {
+        prevEls[i].removeAttribute("data-playhead");
+      }
+      if (step !== null && step >= 0) {
+        const nextEls = container.querySelectorAll(`[data-actual-step="${step}"]`);
+        for (let i = 0; i < nextEls.length; i++) {
+          nextEls[i].setAttribute("data-playhead", "true");
+        }
+      }
+    };
+
+    if (!isSeqOpen || (!isPlaying && !isPaused)) {
+      applyDomPlayhead(null);
+      return;
+    }
+
+    applyDomPlayhead(audioBridge.seqGetCurrentStep());
+    const unsub = audioBridge.onStepChange((step) => {
+      applyDomPlayhead(step);
+    });
+    return unsub;
+  }, [isSeqOpen, isPlaying, isPaused, activePage, resolution, pattern]);
 
   // Cierre al hacer clic fuera de los menús flotantes
   useEffect(() => {
@@ -274,10 +306,8 @@ export const StepSequencer: React.FC<StepSequencerProps> = React.memo(({
     }
   };
 
-  const isSeqOpen = viewMode === "seq";
-
   return (
-    <div className="w-full flex flex-col bg-[#050507] border-t border-white/[0.08] select-none relative z-40">
+    <div ref={seqGridRef} className="w-full flex flex-col bg-[#050507] border-t border-white/[0.08] select-none relative z-40">
       {/* 1. Bahía de Secuenciación Rítmica TR-Style (Visible únicamente en modo SEQ) */}
       {isSeqOpen && (
         <div className="p-1.5 sm:p-2 lg:p-3.5 flex flex-col gap-1 lg:gap-1.5 animate-in fade-in duration-150">
@@ -756,7 +786,9 @@ export const StepSequencer: React.FC<StepSequencerProps> = React.memo(({
                   {/* Botón de Pista / Disparador de Pad */}
                   <button
                     type="button"
-                    onClick={() => {
+                    data-pad-index={padIdx}
+                    onPointerDown={(e) => {
+                      e.preventDefault();
                       if (isMidiLearnActive) {
                         onSelectLearnTarget?.({ type: "pad", index: padIdx });
                         return;
@@ -764,7 +796,7 @@ export const StepSequencer: React.FC<StepSequencerProps> = React.memo(({
                       setSelectedTrack(padIdx);
                       onTriggerPad?.(padIdx);
                     }}
-                    className={`w-20 sm:w-24 lg:w-32 h-[22px] sm:h-6 lg:h-8 rounded-md lg:rounded-lg flex items-center justify-between px-1.5 lg:px-2.5 transition-all shrink-0 cursor-pointer border font-mono text-[8.5px] lg:text-[10px] font-bold select-none touch-manipulation ${
+                    className={`seq-pad-btn w-20 sm:w-24 lg:w-32 h-[22px] sm:h-6 lg:h-8 rounded-md lg:rounded-lg flex items-center justify-between px-1.5 lg:px-2.5 shrink-0 cursor-pointer border font-mono text-[8.5px] lg:text-[10px] font-bold select-none touch-none ${
                       isLearnSelected
                         ? "border-2 border-amber-400 bg-amber-950/40 text-amber-200 shadow-[0_0_18px_rgba(245,158,11,0.85)] ring-2 ring-amber-400/60 animate-pulse"
                         : isMidiLearnActive
@@ -794,7 +826,6 @@ export const StepSequencer: React.FC<StepSequencerProps> = React.memo(({
                       const isStepDisabled = resolution === "eighth" && stepIdx >= 8;
                       const velocity = isStepDisabled ? 0 : pattern[padIdx]?.[actualStep] || 0;
                       const isActive = velocity > 0;
-                      const isPlayhead = (isPlaying || isPaused) && currentStep === actualStep && !isStepDisabled;
                       const isBeatStart = stepIdx % 4 === 0;
                       const isEvenGroup = Math.floor(stepIdx / 4) % 2 === 0;
 
@@ -804,20 +835,18 @@ export const StepSequencer: React.FC<StepSequencerProps> = React.memo(({
                           <button
                             type="button"
                             disabled={isStepDisabled}
+                            data-actual-step={!isStepDisabled ? actualStep : undefined}
+                            data-active={isActive ? "true" : "false"}
                             onClick={() => {
                               if (!isStepDisabled) {
                                 onToggleStep(padIdx, actualStep);
                               }
                             }}
-                            className={`flex-1 h-[22px] sm:h-6 lg:h-8 rounded-[3px] font-mono text-[9px] transition-all relative overflow-hidden active:scale-95 touch-manipulation ${
+                            className={`seq-step-btn flex-1 h-[22px] sm:h-6 lg:h-8 rounded-[3px] font-mono text-[9px] relative overflow-hidden active:scale-95 touch-manipulation ${
                               isStepDisabled
                                 ? "opacity-15 bg-[#090a0d] border border-white/[0.04] cursor-not-allowed pointer-events-none"
                                 : isActive
-                                ? isPlayhead
-                                  ? "bg-amber-300 text-black border border-white shadow-[0_0_14px_#ffffff] z-10 cursor-pointer"
-                                  : "bg-gradient-to-b from-[#3a2f1c] via-[#2a2113] to-[#18130a] border-t border-amber-500/80 border-b-[2px] border-b-black shadow-[0_2px_4px_rgba(0,0,0,0.8),inset_0_0_10px_rgba(245,158,11,0.35)] cursor-pointer"
-                                : isPlayhead
-                                ? "bg-[#282d38] border border-emerald-400/80 shadow-[0_0_10px_rgba(16,185,129,0.4)] cursor-pointer"
+                                ? "bg-gradient-to-b from-[#3a2f1c] via-[#2a2113] to-[#18130a] border-t border-amber-500/80 border-b-[2px] border-b-black shadow-[0_2px_4px_rgba(0,0,0,0.8),inset_0_0_10px_rgba(245,158,11,0.35)] cursor-pointer"
                                 : isEvenGroup
                                 ? "bg-gradient-to-b from-[#252730] via-[#1b1c22] to-[#111216] border-t border-white/10 border-b-[2px] border-b-black shadow-inner hover:brightness-125 cursor-pointer"
                                 : "bg-gradient-to-b from-[#1c1e24] via-[#14151a] to-[#0c0d10] border-t border-white/5 border-b-[2px] border-b-black shadow-inner hover:brightness-125 cursor-pointer"
@@ -826,13 +855,9 @@ export const StepSequencer: React.FC<StepSequencerProps> = React.memo(({
                             {!isStepDisabled && (
                               <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                                 <span
-                                  className={`w-2 sm:w-2.5 lg:w-3.5 h-1 rounded-sm transition-all ${
+                                  className={`seq-step-led w-2 sm:w-2.5 lg:w-3.5 h-1 rounded-sm ${
                                     isActive
-                                      ? isPlayhead
-                                        ? "bg-white shadow-[0_0_10px_white]"
-                                        : "bg-amber-400 shadow-[0_0_8px_#f59e0b]"
-                                      : isPlayhead
-                                      ? "bg-emerald-400 shadow-[0_0_8px_#10b981]"
+                                      ? "bg-amber-400 shadow-[0_0_8px_#f59e0b]"
                                       : isBeatStart
                                       ? "bg-white/30"
                                       : "bg-white/10"

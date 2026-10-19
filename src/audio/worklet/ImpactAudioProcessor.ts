@@ -102,14 +102,12 @@ class ImpactAudioProcessor extends AudioWorkletProcessor {
           const padIdx = DRUM_NOTE_TO_PAD[key];
           if (padIdx !== undefined) {
             const currentStep = seqEngine.seq_get_current_step();
-            const pattern = this.getFlatPatternGrid(seqEngine);
-            // Si el paso no está activo, activarlo y enviar actualización del patrón
-            if (pattern[padIdx][currentStep] === 0) {
+            const flat = seqEngine.seq_get_pattern_flat();
+            // Si el paso no está activo, activarlo sin clonar toda la matriz 8x32 dos veces en el hilo de audio
+            if (flat[padIdx * 32 + currentStep] === 0) {
               const active = seqEngine.seq_toggle_step(padIdx, currentStep);
-              const updatedPattern = this.getFlatPatternGrid(seqEngine);
               this.port.postMessage({
-                type: 'SEQ_PATTERN_UPDATED',
-                pattern: updatedPattern,
+                type: 'SEQ_STEP_RECORDED',
                 padIdx,
                 stepIdx: currentStep,
                 active,

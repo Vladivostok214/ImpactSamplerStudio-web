@@ -20,3 +20,15 @@ export function clearAllVisualKeys(): void {
   const elements = document.querySelectorAll<HTMLElement>('.piano-key-active');
   elements.forEach((el) => el.classList.remove('piano-key-active'));
 }
+
+export function setVisualPadActive(padIdx: number, active: boolean): void {
+  const el = document.querySelector<HTMLElement>(`[data-pad-index="${padIdx}"]`);
+  if (!el) return;
+
+  if (active) {
+    el.setAttribute('data-pad-hit', 'true');
+  } else {
+    el.removeAttribute('data-pad-hit');
+  }
+}
+

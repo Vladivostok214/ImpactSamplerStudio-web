@@ -93,6 +93,23 @@ export class WebAudioBridge {
               this.cachedIsPlaying = data.isPlaying;
               break;
 
+            case 'SEQ_STEP_RECORDED':
+              if (this.cachedPattern[data.padIdx]) {
+                const nextRow = [...this.cachedPattern[data.padIdx]];
+                nextRow[data.stepIdx] = data.active ? 100 : 0;
+                const nextPattern = [...this.cachedPattern];
+                nextPattern[data.padIdx] = nextRow;
+                this.cachedPattern = nextPattern;
+                this.patternListeners.forEach((listener) => {
+                  try {
+                    listener(this.cachedPattern);
+                  } catch {
+                    // Prevenir que errores en UI interrumpan otros listeners
+                  }
+                });
+              }
+              break;
+
             case 'SEQ_PATTERN_UPDATED':
               if (data.pattern) {
                 this.cachedPattern = data.pattern;

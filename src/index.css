@@ -131,4 +131,37 @@ html, body, #root {
   font-weight: 900 !important;
 }
 
+/* =========================================================================
+   PLAYHEAD Y PADS DEL SECUENCIADOR POR DOM DIRECTO (0 RE-RENDERS EN REACT)
+   ========================================================================= */
 
+.seq-step-btn[data-playhead="true"][data-active="false"] {
+  background: #282d38 !important;
+  border-color: rgba(52, 211, 153, 0.85) !important;
+  box-shadow: 0 0 8px rgba(16, 185, 129, 0.35) !important;
+}
+
+.seq-step-btn[data-playhead="true"][data-active="false"] .seq-step-led {
+  background-color: #34d399 !important;
+  box-shadow: 0 0 6px #10b981 !important;
+}
+
+.seq-step-btn[data-playhead="true"][data-active="true"] {
+  background: #fcd34d !important;
+  color: #000000 !important;
+  border-color: #ffffff !important;
+  box-shadow: 0 0 12px #ffffff !important;
+  z-index: 10;
+}
+
+.seq-step-btn[data-playhead="true"][data-active="true"] .seq-step-led {
+  background-color: #ffffff !important;
+  box-shadow: 0 0 8px #ffffff !important;
+}
+
+.seq-pad-btn[data-pad-hit="true"] {
+  filter: brightness(1.65) !important;
+  border-color: #ffffff !important;
+  box-shadow: 0 0 14px rgba(255, 255, 255, 0.65) !important;
+  transform: scale(0.98);
+}

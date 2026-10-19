@@ -264,7 +264,7 @@ export const HardwareSkeleton: React.FC<HardwareSkeletonProps> = React.memo(({
   };
 
   return (
-    <div className="bg-[#050508] border border-white/[0.12] rounded-xl lg:rounded-2xl shadow-[0_20px_60px_rgba(0,0,0,0.95),0_0_1px_1px_rgba(255,255,255,0.06),inset_0_1px_0_0_rgba(255,255,255,0.1)] flex flex-col overflow-hidden select-none transition-all duration-200 w-full">
+    <div className="flex flex-col w-full">
       {/* 1. Deck Superior: Wheels, Faders, OLED + Knobs, Performance Bay (Horizontal en Mobile Landscape & Desktop; se repliega en mobile durante modo SEQ) */}
       <div className={`${hideKeyboard ? "hidden lg:flex" : "flex"} p-2 sm:p-2.5 lg:p-4 bg-gradient-to-b from-[#111216] via-[#0d0e12] to-[#08080a] border-b border-white/[0.08] flex-row flex-wrap sm:flex-nowrap gap-2 lg:gap-4 items-stretch w-full`}>
         {/* Ruedas Pitch & Mod */}
@@ -693,4 +693,22 @@ export const HardwareSkeleton: React.FC<HardwareSkeletonProps> = React.memo(({
       {children && <div className="relative z-40">{children}</div>}
     </div>
   );
-});
+}, (prev, next) => (
+  prev.faders === next.faders &&
+  prev.knobs === next.knobs &&
+  prev.pitchBend === next.pitchBend &&
+  prev.modWheel === next.modWheel &&
+  prev.availableSoundfonts === next.availableSoundfonts &&
+  prev.currentSoundfont === next.currentSoundfont &&
+  prev.activePresetIndex === next.activePresetIndex &&
+  prev.isDownloading === next.isDownloading &&
+  prev.downloadProgress === next.downloadProgress &&
+  prev.fxRouting === next.fxRouting &&
+  prev.arpState === next.arpState &&
+  prev.isMidiLearnActive === next.isMidiLearnActive &&
+  prev.selectedLearnTarget === next.selectedLearnTarget &&
+  prev.midiLearnMapping === next.midiLearnMapping &&
+  prev.hideKeyboard === next.hideKeyboard &&
+  prev.qwertyEnabled === next.qwertyEnabled &&
+  prev.qwertyOctaveOffset === next.qwertyOctaveOffset
+));
