@@ -14,7 +14,6 @@ import {
 import { NormalizedMidiEvent } from "../types/midi";
 import { MidiDinIcon, MidiStreamPopover } from "./MidiStreamPopover";
 import { SoundFontInfo } from "../types/soundfont";
-import { MIN_OCTAVE_OFFSET, MAX_OCTAVE_OFFSET } from "../hooks/useQwertyKeyboard";
 
 interface HeaderProps {
   onOpenInstrumentSelect: () => void;
@@ -33,8 +32,6 @@ interface HeaderProps {
   onToggleMidiLearn?: () => void;
   qwertyEnabled?: boolean;
   onToggleQwerty?: () => void;
-  octaveOffset?: number;
-  onOctaveOffsetChange?: (offset: number) => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -54,8 +51,6 @@ export const Header: React.FC<HeaderProps> = ({
   onToggleMidiLearn,
   qwertyEnabled = false,
   onToggleQwerty,
-  octaveOffset = 0,
-  onOctaveOffsetChange,
 }) => {
   const [isMidiPopoverOpen, setIsMidiPopoverOpen] = useState(false);
   const [isVolumeOpen, setIsVolumeOpen] = useState(false);
@@ -243,52 +238,30 @@ export const Header: React.FC<HeaderProps> = ({
             />
           </div>
 
-          {/* Pastilla QWERTY con Selector de Octava */}
-          <div className="flex items-center gap-1.5 px-2 py-1 rounded-xl bg-white/[0.04] border border-white/[0.08] text-[11px]">
-            <button
-              type="button"
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={onToggleQwerty}
-              className={`flex items-center gap-1.5 px-1 py-0.5 rounded transition cursor-pointer select-none ${
+          {/* Botón Toggle de Teclado QWERTY */}
+          <button
+            type="button"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={onToggleQwerty}
+            className={`px-2.5 py-1.5 rounded-xl border transition flex items-center gap-1.5 cursor-pointer text-xs font-mono select-none ${
+              qwertyEnabled
+                ? "bg-amber-500/20 text-amber-300 border-amber-400 shadow-[0_0_15px_rgba(245,158,11,0.35)] font-bold"
+                : "bg-white/[0.04] hover:bg-white/[0.08] text-zinc-300 hover:text-white border-white/[0.08]"
+            }`}
+            title="Activar / Desactivar tocar con teclado QWERTY de la PC"
+          >
+            <Keyboard size={14} className="shrink-0" />
+            <span className="text-[11px] font-mono tracking-wider font-semibold hidden sm:inline">
+              QWERTY
+            </span>
+            <span
+              className={`w-1.5 h-1.5 rounded-full transition-all shrink-0 ${
                 qwertyEnabled
-                  ? "bg-amber-500/20 text-amber-300 border border-amber-500/40"
-                  : "text-slate-400 hover:text-slate-200"
+                  ? "bg-amber-400 shadow-[0_0_8px_#f59e0b]"
+                  : "bg-zinc-600"
               }`}
-              title="Activar / Desactivar tocar con teclado QWERTY"
-            >
-              <Keyboard size={15} />
-              <span className="font-bold hidden sm:inline">QWERTY</span>
-              <div className={`w-1.5 h-1.5 rounded-full ${qwertyEnabled ? "bg-amber-400 shadow-[0_0_6px_#f59e0b]" : "bg-slate-600"}`} />
-            </button>
-
-            {qwertyEnabled && onOctaveOffsetChange && (
-              <div className="flex items-center gap-1 pl-1 border-l border-white/10 font-mono">
-                <button
-                  type="button"
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => onOctaveOffsetChange(Math.max(MIN_OCTAVE_OFFSET, octaveOffset - 1))}
-                  disabled={octaveOffset <= MIN_OCTAVE_OFFSET}
-                  className="w-4 h-4 flex items-center justify-center rounded bg-black/40 hover:bg-white/10 text-slate-300 disabled:opacity-30 disabled:pointer-events-none text-[10px] font-bold cursor-pointer"
-                  title="Octava Abajo (Atajo: Z)"
-                >
-                  -
-                </button>
-                <span className="text-amber-300 font-bold px-0.5 min-w-[26px] text-center" title="Octava actual (Z para bajar, X para subir)">
-                  {`C${3 + octaveOffset}`}
-                </span>
-                <button
-                  type="button"
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => onOctaveOffsetChange(Math.min(MAX_OCTAVE_OFFSET, octaveOffset + 1))}
-                  disabled={octaveOffset >= MAX_OCTAVE_OFFSET}
-                  className="w-4 h-4 flex items-center justify-center rounded bg-black/40 hover:bg-white/10 text-slate-300 disabled:opacity-30 disabled:pointer-events-none text-[10px] font-bold cursor-pointer"
-                  title="Octava Arriba (Atajo: X)"
-                >
-                  +
-                </button>
-              </div>
-            )}
-          </div>
+            />
+          </button>
 
           {/* Botón Toggle de MIDI LEARN */}
           <button

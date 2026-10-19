@@ -947,7 +947,7 @@ export const App: React.FC = () => {
     setVisualKeyActive(note, false);
   };
 
-  const { octaveOffset, setOctaveOffset } = useQwertyKeyboard({
+  const { octaveOffset } = useQwertyKeyboard({
     enabled: qwertyEnabled,
     onNoteOn: handleQwertyNoteOn,
     onNoteOff: handleQwertyNoteOff,
@@ -1194,8 +1194,6 @@ export const App: React.FC = () => {
         }}
         qwertyEnabled={qwertyEnabled}
         onToggleQwerty={() => setQwertyEnabled((prev) => !prev)}
-        octaveOffset={octaveOffset}
-        onOctaveOffsetChange={setOctaveOffset}
       />
 
       {/* Barra Superior Informativa de Modo MIDI Learn */}
