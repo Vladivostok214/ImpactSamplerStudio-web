@@ -136,7 +136,9 @@ export const App: React.FC = () => {
   const [pitchBend, setPitchBend] = useState<number>(0);
   const [modWheel, setModWheel] = useState<number>(0);
   const [fxRouting, setFxRouting] = useState<FxRouting>('off');
-  const [qwertyEnabled, setQwertyEnabled] = useState<boolean>(true);
+  const [qwertyEnabled, setQwertyEnabled] = useState<boolean>(
+    () => typeof window !== 'undefined' && window.innerWidth >= 1024 && !window.matchMedia('(pointer: coarse)').matches
+  );
 
   // Estados de Modo Workstation y Secuenciador Rítmico (Bloque 4)
   const [workstationMode, setWorkstationMode] = useState<'keys' | 'seq'>('keys');

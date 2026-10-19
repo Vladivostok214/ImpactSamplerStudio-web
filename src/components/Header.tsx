@@ -208,12 +208,12 @@ export const Header: React.FC<HeaderProps> = React.memo(({
             />
           </div>
 
-          {/* Botón Toggle de Teclado QWERTY */}
+          {/* Botón Toggle de Teclado QWERTY (Solo en Desktop) */}
           <button
             type="button"
             onMouseDown={(e) => e.preventDefault()}
             onClick={onToggleQwerty}
-            className={`px-2 py-1 lg:px-2.5 lg:py-1.5 rounded-lg lg:rounded-xl border transition flex items-center gap-1.5 cursor-pointer text-xs font-mono select-none ${
+            className={`hidden lg:flex px-2 py-1 lg:px-2.5 lg:py-1.5 rounded-lg lg:rounded-xl border transition items-center gap-1.5 cursor-pointer text-xs font-mono select-none ${
               qwertyEnabled
                 ? "bg-amber-500/20 text-amber-300 border-amber-400 shadow-[0_0_15px_rgba(245,158,11,0.35)] font-bold"
                 : "bg-white/[0.04] hover:bg-white/[0.08] text-zinc-300 hover:text-white border-white/[0.08]"
