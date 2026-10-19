@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Search, X, ChevronRight, HelpCircle, Sparkles } from 'lucide-react';
 import { FAQ_DATABASE, FaqCategory } from '../data/studioFaqDatabase';
+import { searchFaqSemantic, ScoredFaqItem } from '../utils/nlpSearchEngine';
 
 interface StudioAssistantAvatarProps {
   onOpenSequencer?: () => void;
@@ -66,23 +67,17 @@ export const StudioAssistantAvatar: React.FC<StudioAssistantAvatarProps> = ({
     return () => window.removeEventListener('mousemove', handleMouseMove);
   }, []);
 
-  // Filtrado reactivo en memoria (0 ms de latencia)
-  const filteredFaqs = useMemo(() => {
-    const query = searchQuery.trim().toLowerCase();
-    return FAQ_DATABASE.filter((item) => {
-      const matchesCategory = activeCategory === 'all' || item.category === activeCategory;
-      if (!matchesCategory) return false;
-
-      if (!query) return true;
-
-      const inQuestion = item.question.toLowerCase().includes(query);
-      const inAnswer = item.shortAnswer.toLowerCase().includes(query);
-      const inTags = item.tags.some((t) => t.toLowerCase().includes(query));
-      const inSteps = item.detailedSteps.some((s) => s.toLowerCase().includes(query));
-
-      return inQuestion || inAnswer || inTags || inSteps;
-    });
+  // Búsqueda Semántica con NLP y Puntuación de Relevancia (0 ms de latencia)
+  const searchResults: ScoredFaqItem[] = useMemo(() => {
+    return searchFaqSemantic(searchQuery, activeCategory, FAQ_DATABASE);
   }, [searchQuery, activeCategory]);
+
+  // Auto-desplegar la mejor respuesta cuando el usuario escribe una pregunta abierta
+  useEffect(() => {
+    if (searchQuery.trim().length >= 4 && searchResults.length > 0 && searchResults[0].isBestMatch) {
+      setExpandedFaqId(searchResults[0].item.id);
+    }
+  }, [searchQuery, searchResults]);
 
   const handleExecuteAction = (type: string) => {
     if (type === 'open_seq') {
@@ -326,22 +321,24 @@ export const StudioAssistantAvatar: React.FC<StudioAssistantAvatarProps> = ({
 
             {/* Lista de Preguntas y Respuestas */}
             <div className="flex-1 overflow-y-auto p-4 space-y-2.5 custom-scrollbar">
-              {filteredFaqs.length === 0 ? (
+              {searchResults.length === 0 ? (
                 <div className="py-12 flex flex-col items-center justify-center text-center">
                   <HelpCircle className="w-8 h-8 text-zinc-600 mb-2" />
-                  <p className="text-sm font-mono text-zinc-400">No encontramos resultados para tu búsqueda</p>
+                  <p className="text-sm font-mono text-zinc-400">No encontramos respuestas para esa pregunta</p>
                   <p className="text-xs text-zinc-600 mt-1 max-w-sm">
-                    Intenta buscando palabras clave como "octava", "grabar", "metrónomo", "delay", "midi" o selecciona otra categoría.
+                    Intenta preguntar de otra forma como "¿cómo activo el secuenciador?", "¿cómo cambio de octava?" o "¿cómo conectar MIDI?".
                   </p>
                 </div>
               ) : (
-                filteredFaqs.map((faq) => {
+                searchResults.map(({ item: faq, isBestMatch }) => {
                   const isExpanded = expandedFaqId === faq.id;
                   return (
                     <div
                       key={faq.id}
                       className={`rounded-xl border transition-all duration-200 overflow-hidden ${
-                        isExpanded
+                        isBestMatch && searchQuery.trim()
+                          ? 'bg-emerald-950/20 border-emerald-500/50 shadow-[0_0_20px_rgba(16,185,129,0.12)]'
+                          : isExpanded
                           ? 'bg-zinc-900/50 border-emerald-500/40 shadow-[0_0_15px_rgba(16,185,129,0.08)]'
                           : 'bg-zinc-950/40 border-white/5 hover:border-white/10 hover:bg-zinc-900/30'
                       }`}
@@ -353,9 +350,17 @@ export const StudioAssistantAvatar: React.FC<StudioAssistantAvatarProps> = ({
                         className="w-full px-4 py-3 text-left flex items-start justify-between gap-3"
                       >
                         <div>
-                          <span className="text-[9px] font-mono uppercase tracking-wider text-emerald-400/80 mb-1 block">
-                            {faq.categoryLabel}
-                          </span>
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="text-[9px] font-mono uppercase tracking-wider text-emerald-400/80 block">
+                              {faq.categoryLabel}
+                            </span>
+                            {isBestMatch && searchQuery.trim().length >= 3 && (
+                              <span className="px-1.5 py-0.2 rounded text-[8px] font-mono bg-emerald-500 text-black font-black uppercase tracking-wider shadow-[0_0_6px_#10b981] flex items-center gap-0.5">
+                                <Sparkles className="w-2.5 h-2.5" />
+                                <span>Mejor Coincidencia</span>
+                              </span>
+                            )}
+                          </div>
                           <h4 className="text-xs font-semibold text-white tracking-wide">
                             {faq.question}
                           </h4>
@@ -411,7 +416,7 @@ export const StudioAssistantAvatar: React.FC<StudioAssistantAvatarProps> = ({
 
             {/* Pie del Asistente */}
             <div className="px-5 py-3 border-t border-white/10 bg-zinc-950/80 flex items-center justify-between text-[10px] font-mono text-zinc-500">
-              <span>{filteredFaqs.length} temas disponibles</span>
+              <span>{searchResults.length} temas encontrados</span>
               <span className="text-zinc-600">Presiona [Esc] para cerrar</span>
             </div>
           </div>

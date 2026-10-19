@@ -79,6 +79,53 @@ export const FAQ_DATABASE: FaqItem[] = [
 
   // --- SECUENCIADOR & GRABACIÓN EN VIVO ---
   {
+    id: 'seq-how-to-open',
+    category: 'sequencer',
+    categoryLabel: 'Secuenciador & Grabación',
+    question: '¿Cómo activo o abro el secuenciador rítmico?',
+    shortAnswer: 'Haz clic en el selector "SEQ" ubicado sobre la consola o pulsa el botón directo a continuación.',
+    detailedSteps: [
+      '1. En el centro de la consola, haz clic en el tab "SEQ" (situado junto a "KEYS").',
+      '2. Al entrar a modo SEQ, la aplicación conmuta automáticamente a la batería Yamaha RX7.',
+      '3. Se desplegará la cuadrícula TR de 32 pasos y los 8 pads listos para tocar o grabar.',
+    ],
+    tags: ['activar', 'activo', 'activa', 'abrir', 'abro', 'secuenciador', 'seq', 'entrar', 'ver', 'donde', 'bateria', 'ritmo', 'poner', 'mostrar'],
+    action: {
+      type: 'open_seq',
+      label: 'Abrir Secuenciador Rítmico',
+    },
+  },
+  {
+    id: 'keys-how-to-open',
+    category: 'qwerty',
+    categoryLabel: 'Teclado QWERTY',
+    question: '¿Cómo activo o regreso al teclado de piano?',
+    shortAnswer: 'Haz clic en el tab "KEYS" en el selector central para volver a la vista del teclado melódico.',
+    detailedSteps: [
+      '1. Haz clic en el botón "KEYS" situado junto a "SEQ".',
+      '2. La estación de trabajo restaurará tu instrumento melódico (Grand Piano, Mellotron o Rhodes).',
+      '3. El teclado de piano en pantalla se desplegará de inmediato.',
+    ],
+    tags: ['activar', 'activo', 'activa', 'abrir', 'abro', 'teclado', 'keys', 'piano', 'melodico', 'volver', 'regresar', 'ver', 'donde'],
+    action: {
+      type: 'open_keys',
+      label: 'Ver Teclado Melódico',
+    },
+  },
+  {
+    id: 'audio-no-sound',
+    category: 'effects',
+    categoryLabel: 'Efectos & Ruteo',
+    question: '¿Por qué no se escucha ningún sonido o está en silencio?',
+    shortAnswer: 'El navegador requiere una interacción previa para desbloquear el motor de audio.',
+    detailedSteps: [
+      '1. Toca cualquier tecla de tu teclado físico o haz clic en una tecla en pantalla para iniciar el motor WebAudio.',
+      '2. Verifica que el Master Fader (el fader derecho F9) no se encuentre en cero.',
+      '3. Si estás usando efectos, verifica que los botones FX KEYS o FX PADS estén activados según desees procesar teclas o pads.',
+    ],
+    tags: ['no suena', 'no escucho', 'silencio', 'mudo', 'se corta', 'volumen', 'audio', 'fader', 'sonido', 'problema'],
+  },
+  {
     id: 'seq-live-recording',
     category: 'sequencer',
     categoryLabel: 'Secuenciador & Grabación',
