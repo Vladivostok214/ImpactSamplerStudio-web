@@ -215,7 +215,13 @@ export function useQwertyKeyboard({
     };
 
     const handleWindowBlur = () => {
-      releaseAll();
+      // Evitar que clics en botones o modales dentro del mismo documento cancelen las notas.
+      // Solo liberamos notas si la ventana realmente perdió el foco general o está oculta.
+      setTimeout(() => {
+        if (!document.hasFocus() || document.hidden) {
+          releaseAll();
+        }
+      }, 50);
     };
 
     const handleVisibilityChange = () => {

@@ -11,6 +11,7 @@ import { InstrumentSelectModal, FactoryInstrumentDef } from './components/Instru
 import { SoundFontStorage } from './storage/SoundFontStorage';
 import { OrientationGuard } from './components/OrientationGuard';
 import { setVisualKeyActive, clearAllVisualKeys } from './utils/visualKeys';
+import { parseSf2Presets } from './utils/sf2Parser';
 import { Activity, Upload, Music, Volume2, Loader2, Keyboard, Play, Square, Circle, Bell } from 'lucide-react';
 import '@fontsource/geist-sans';
 import '@fontsource/geist-mono';
@@ -256,6 +257,7 @@ export const App: React.FC = () => {
             await audioBridge.initialize();
             await audioBridge.loadSoundFont(entry.data, entry.filename);
 
+            const presets = parseSf2Presets(entry.data);
             const sfInfo: SoundFontInfo = {
               id: entry.id,
               filename: entry.filename,
@@ -263,7 +265,7 @@ export const App: React.FC = () => {
               description: entry.description,
               category: entry.category,
               fileSizeMb: entry.fileSizeMb,
-              presets: [{ index: 0, name: 'Default Patch', bank: 0, patch: 0 }],
+              presets,
             };
             if (isMounted) {
               setCurrentSoundfont(sfInfo);
@@ -313,6 +315,7 @@ export const App: React.FC = () => {
       const list = await SoundFontStorage.list();
       setSavedSoundfonts(list);
 
+      const presets = parseSf2Presets(data);
       const sfInfo: SoundFontInfo = {
         id,
         filename,
@@ -320,7 +323,7 @@ export const App: React.FC = () => {
         description,
         category,
         fileSizeMb,
-        presets: [{ index: 0, name: 'Default Patch', bank: 0, patch: 0 }],
+        presets,
       };
 
       // Sincronizar DSP y Arpegiador en WASM
@@ -458,6 +461,7 @@ export const App: React.FC = () => {
 
       SoundFontStorage.setLastLoadedId(id);
 
+      const presets = parseSf2Presets(entry.data);
       const sfInfo: SoundFontInfo = {
         id: entry.id,
         filename: entry.filename,
@@ -465,7 +469,7 @@ export const App: React.FC = () => {
         description: entry.description,
         category: entry.category,
         fileSizeMb: entry.fileSizeMb,
-        presets: [{ index: 0, name: 'Default Patch', bank: 0, patch: 0 }],
+        presets,
       };
 
       knobs.forEach((val, idx) => audioBridge.setKnob(idx, val));
@@ -509,6 +513,11 @@ export const App: React.FC = () => {
   const handleReleaseNote = (note: number) => {
     audioBridge.noteOff(note);
     setVisualKeyActive(note, false);
+  };
+
+  const handleSelectPreset = (patch: number, index: number, bank: number = 0) => {
+    setActivePresetIndex(index);
+    audioBridge.setProgram(patch, bank);
   };
 
   const handleQwertyNoteOn = async (note: number, velocity: number) => {
@@ -739,6 +748,7 @@ export const App: React.FC = () => {
         {/* Selector de SoundFont / Catálogo Fotográfico (Bloque 5) */}
         <button
           type="button"
+          onMouseDown={(e) => e.preventDefault()}
           onClick={() => setIsInstrumentModalOpen(true)}
           className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-black/40 border border-white/10 hover:border-cyan-500/40 cursor-pointer transition text-xs font-mono group"
           title="Abrir Catálogo Fotográfico de Instrumentos"
@@ -761,6 +771,7 @@ export const App: React.FC = () => {
           {/* STOP Button */}
           <button
             type="button"
+            onMouseDown={(e) => e.preventDefault()}
             onClick={handleStop}
             className={`w-7 h-7 flex items-center justify-center rounded-md transition-all active:scale-95 ${
               !isPlaying
@@ -775,6 +786,7 @@ export const App: React.FC = () => {
           {/* PLAY / PAUSE Button */}
           <button
             type="button"
+            onMouseDown={(e) => e.preventDefault()}
             onClick={handleTogglePlay}
             className={`w-7 h-7 flex items-center justify-center rounded-md transition-all active:scale-95 ${
               isPlaying
@@ -789,6 +801,7 @@ export const App: React.FC = () => {
           {/* RECORD Button */}
           <button
             type="button"
+            onMouseDown={(e) => e.preventDefault()}
             onClick={handleToggleRecord}
             className={`w-7 h-7 flex items-center justify-center rounded-md transition-all active:scale-95 ${
               isRecording
@@ -803,6 +816,7 @@ export const App: React.FC = () => {
           {/* METRONOME CLICK Button */}
           <button
             type="button"
+            onMouseDown={(e) => e.preventDefault()}
             onClick={handleToggleMetronome}
             className={`w-7 h-7 flex items-center justify-center rounded-md transition-all active:scale-95 ${
               isMetronomeActive
@@ -841,6 +855,7 @@ export const App: React.FC = () => {
           <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-white/[0.04] border border-white/10 text-[11px]">
             <button
               type="button"
+              onMouseDown={(e) => e.preventDefault()}
               onClick={() => setQwertyEnabled((prev) => !prev)}
               className={`flex items-center gap-1.5 px-1.5 py-0.5 rounded transition ${
                 qwertyEnabled
@@ -858,6 +873,7 @@ export const App: React.FC = () => {
               <div className="flex items-center gap-1 pl-1 border-l border-white/10">
                 <button
                   type="button"
+                  onMouseDown={(e) => e.preventDefault()}
                   onClick={() => setOctaveOffset((prev) => Math.max(MIN_OCTAVE_OFFSET, prev - 1))}
                   disabled={octaveOffset <= MIN_OCTAVE_OFFSET}
                   className="w-4 h-4 flex items-center justify-center rounded bg-black/40 hover:bg-white/10 text-slate-300 disabled:opacity-30 disabled:pointer-events-none text-[10px] font-bold"
@@ -870,6 +886,7 @@ export const App: React.FC = () => {
                 </span>
                 <button
                   type="button"
+                  onMouseDown={(e) => e.preventDefault()}
                   onClick={() => setOctaveOffset((prev) => Math.min(MAX_OCTAVE_OFFSET, prev + 1))}
                   disabled={octaveOffset >= MAX_OCTAVE_OFFSET}
                   className="w-4 h-4 flex items-center justify-center rounded bg-black/40 hover:bg-white/10 text-slate-300 disabled:opacity-30 disabled:pointer-events-none text-[10px] font-bold"
@@ -933,6 +950,7 @@ export const App: React.FC = () => {
             modWheel={modWheel}
             currentSoundfont={currentSoundfont}
             activePresetIndex={activePresetIndex}
+            onSelectPreset={handleSelectPreset}
             fxRouting={fxRouting}
             onChangeFxRouting={handleChangeFxRouting}
             arpState={arpState}
