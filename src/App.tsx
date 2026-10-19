@@ -1049,6 +1049,13 @@ export const App: React.FC = () => {
     setSequencerState((prev) => ({ ...prev, bpm: nextBpm }));
   };
 
+  const handleSetBpm = (val: number) => {
+    const nextBpm = Math.max(40, Math.min(260, Math.round(val)));
+    setBpm(nextBpm);
+    audioBridge.setBpm(nextBpm);
+    setSequencerState((prev) => ({ ...prev, bpm: nextBpm }));
+  };
+
   // Sincronización reactiva del patrón cuando se graba en vivo desde el hilo de audio
   useEffect(() => {
     const unsub = audioBridge.onPatternChange((newPattern) => {
@@ -1326,6 +1333,7 @@ export const App: React.FC = () => {
               onStop={handleStop}
               onToggleRecord={handleToggleRecord}
               bpm={bpm}
+              onSetBpm={handleSetBpm}
               onAdjustBpm={handleChangeBpm}
               onTapTempo={handleTapTempo}
               onToggleStep={handleSequencerToggleStep}
@@ -1336,6 +1344,10 @@ export const App: React.FC = () => {
               onUndo={handleSequencerUndo}
               isClickEnabled={isMetronomeActive}
               onToggleClick={handleToggleMetronome}
+              quantizeMode={sequencerState.quantizeMode}
+              quantizeStrength={sequencerState.quantizeStrength}
+              onSetQuantizeMode={(mode) => setSequencerState((prev) => ({ ...prev, quantizeMode: mode }))}
+              onSetQuantizeStrength={(str) => setSequencerState((prev) => ({ ...prev, quantizeStrength: str }))}
             />
           </HardwareSkeleton>
         </div>
