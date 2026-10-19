@@ -601,40 +601,6 @@ export const StepSequencer: React.FC<StepSequencerProps> = ({
       {/* Si viewMode === "seq", mostramos la Grilla Rítmica TR Completa */}
       {viewMode === "seq" && (
         <div className="p-3.5 bg-[#08090c] flex flex-col gap-1.5 overflow-x-auto">
-          {/* Fila de Barra de Pasos / Playhead LED */}
-          <div className="flex items-center gap-2 mb-1">
-            <div className="w-28 sm:w-32 shrink-0 text-[10px] font-mono text-zinc-500 font-bold tracking-wider uppercase px-1">
-              PISTA / PAD
-            </div>
-            <div className="flex-1 flex items-center gap-1 min-w-[500px]">
-              {STEPS_16.map((stepIdx) => {
-                const actualStep = resolution === "thirtySecond" ? activePage * 16 + stepIdx : stepIdx;
-                const isStepDisabled = resolution === "eighth" && stepIdx >= 8;
-                const isCurrent = isPlaying && currentStep === actualStep && !isStepDisabled;
-                const isBeatDown = stepIdx % 4 === 0;
-
-                return (
-                  <React.Fragment key={`playhead-${stepIdx}`}>
-                    {stepIdx > 0 && stepIdx % 4 === 0 && <div className="w-1.5" />}
-                    <div
-                      className={`flex-1 h-2 rounded-[2px] transition-all flex items-center justify-center ${
-                        isStepDisabled
-                          ? "opacity-20 bg-zinc-900"
-                          : isCurrent
-                          ? isBeatDown
-                            ? "bg-amber-400 shadow-[0_0_8px_#f59e0b]"
-                            : "bg-emerald-400 shadow-[0_0_8px_#10b981]"
-                          : isBeatDown
-                          ? "bg-zinc-700"
-                          : "bg-zinc-800"
-                      }`}
-                    />
-                  </React.Fragment>
-                );
-              })}
-            </div>
-          </div>
-
           {/* 8 Pistas de Percusión con Botones Mecánicos TR-Style */}
           {[0, 1, 2, 3, 4, 5, 6, 7].map((padIdx) => {
             const padName = padSlots[padIdx]?.sampleName || DEFAULT_DRUM_NAMES[padIdx] || `P${padIdx + 1}`;

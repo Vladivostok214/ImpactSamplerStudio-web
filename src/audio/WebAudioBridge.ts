@@ -166,6 +166,10 @@ export class WebAudioBridge {
     }
   }
 
+  public getAudioContext(): AudioContext | null {
+    return this.ctx;
+  }
+
   public async loadSoundFont(buffer: ArrayBuffer, name: string): Promise<void> {
     await this.initialize();
     if (!this.workletNode) throw new Error('Motor de audio no inicializado');

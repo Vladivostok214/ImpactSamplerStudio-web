@@ -1,4 +1,6 @@
 import { audioBridge } from '../audio/WebAudioBridge';
+import { NormalizedMidiEvent } from '../types/midi';
+import { getMidiNoteName } from '../types/midiLearn';
 
 export type MidiDeviceCallback = (devices: string[]) => void;
 export type NoteEventCallback = (note: number, velocity: number, isNoteOn: boolean) => void;
@@ -6,6 +8,7 @@ export type CcEventCallback = (controller: number, value: number, channel: numbe
 export type PitchBendCallback = (value: number, channel: number) => void;
 export type TransportAction = 'play' | 'stop' | 'record' | 'rewind' | 'forward' | 'loop' | 'click';
 export type TransportCallback = (action: TransportAction, value: number) => void;
+export type NormalizedMidiEventCallback = (event: NormalizedMidiEvent) => void;
 
 export class WebMidiManager {
   private static instance: WebMidiManager;
@@ -16,6 +19,7 @@ export class WebMidiManager {
   private onCcEventListeners: CcEventCallback[] = [];
   private onPitchBendListeners: PitchBendCallback[] = [];
   private onTransportListeners: TransportCallback[] = [];
+  private onNormalizedMidiEventListeners: NormalizedMidiEventCallback[] = [];
   public shouldInterceptNote: ((note: number, velocity: number) => boolean) | null = null;
 
   private constructor() {}
@@ -66,23 +70,38 @@ export class WebMidiManager {
     const [status, data1, data2] = msg.data;
     const command = status >> 4;
     const channel = status & 0x0f;
+    const portName = (msg.target as any)?.name || (this.connectedDevices[0] || 'Web MIDI');
+    const timestampMs = Math.round(performance.now());
 
     // 0x09: Note On
     if (command === 0x09) {
       const note = data1;
       const velocity = data2;
       const intercepted = this.shouldInterceptNote ? this.shouldInterceptNote(note, velocity) : false;
-      if (velocity > 0) {
+      const isNoteOn = velocity > 0;
+      if (isNoteOn) {
         if (!intercepted) {
           audioBridge.noteOn(note, velocity, channel);
         }
         this.notifyNoteEvent(note, velocity, true);
+        this.notifyNormalizedMidiEvent({
+          portName,
+          channel: channel + 1,
+          event: { type: 'noteon', note, velocity, noteName: getMidiNoteName(note) },
+          timestampMs,
+        });
       } else {
         // Velocity 0 es tratado como Note Off en protocolo MIDI
         if (!intercepted) {
           audioBridge.noteOff(note, channel);
         }
         this.notifyNoteEvent(note, 0, false);
+        this.notifyNormalizedMidiEvent({
+          portName,
+          channel: channel + 1,
+          event: { type: 'noteoff', note, velocity: 0, noteName: getMidiNoteName(note) },
+          timestampMs,
+        });
       }
     }
     // 0x08: Note Off
@@ -93,12 +112,24 @@ export class WebMidiManager {
         audioBridge.noteOff(note, channel);
       }
       this.notifyNoteEvent(note, 0, false);
+      this.notifyNormalizedMidiEvent({
+        portName,
+        channel: channel + 1,
+        event: { type: 'noteoff', note, velocity: 0, noteName: getMidiNoteName(note) },
+        timestampMs,
+      });
     }
     // 0x0B: Control Change (Faders, Knobs, Mod Wheel, Transporte, etc.)
     else if (command === 0x0B) {
       const controller = data1;
       const value = data2;
       this.notifyCcEvent(controller, value, channel);
+      this.notifyNormalizedMidiEvent({
+        portName,
+        channel: channel + 1,
+        event: { type: 'controlchange', controller, value },
+        timestampMs,
+      });
 
       // Parseo especializado de Transporte Hardware (Nektar LX49+ & Estándar DAW)
       if (value > 0) {
@@ -116,7 +147,17 @@ export class WebMidiManager {
       const raw = (data2 << 7) | data1;
       const bend = raw - 8192; // -8192 a 8191
       this.notifyPitchBendEvent(bend, channel);
+      this.notifyNormalizedMidiEvent({
+        portName,
+        channel: channel + 1,
+        event: { type: 'pitchbend', value: bend, normalized: bend },
+        timestampMs,
+      });
     }
+  }
+
+  private notifyNormalizedMidiEvent(event: NormalizedMidiEvent): void {
+    this.onNormalizedMidiEventListeners.forEach((cb) => cb(event));
   }
 
   private notifyNoteEvent(note: number, velocity: number, isNoteOn: boolean): void {
@@ -168,6 +209,13 @@ export class WebMidiManager {
     this.onPitchBendListeners.push(callback);
     return () => {
       this.onPitchBendListeners = this.onPitchBendListeners.filter((c) => c !== callback);
+    };
+  }
+
+  public onNormalizedMidiEvent(callback: NormalizedMidiEventCallback): () => void {
+    this.onNormalizedMidiEventListeners.push(callback);
+    return () => {
+      this.onNormalizedMidiEventListeners = this.onNormalizedMidiEventListeners.filter((c) => c !== callback);
     };
   }
 

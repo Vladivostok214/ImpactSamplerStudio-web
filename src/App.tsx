@@ -6,7 +6,7 @@ import { StepSequencer } from './components/StepSequencer';
 import { SoundFontInfo } from './types/soundfont';
 import { FxRouting, SequencerStateInfo, StepResolution } from './types/sampler';
 import { ArpStateInfo } from './types/arpeggiator';
-import { useQwertyKeyboard, MIN_OCTAVE_OFFSET, MAX_OCTAVE_OFFSET } from './hooks/useQwertyKeyboard';
+import { useQwertyKeyboard } from './hooks/useQwertyKeyboard';
 import { InstrumentSelectModal, FactoryInstrumentDef, FACTORY_INSTRUMENTS } from './components/InstrumentSelectModal';
 import { SoundFontStorage } from './storage/SoundFontStorage';
 import { OrientationGuard } from './components/OrientationGuard';
@@ -23,7 +23,9 @@ import {
   getMidiNoteName,
   ACTION_LABELS,
 } from './types/midiLearn';
-import { Upload, Music, Volume2, Loader2, Keyboard, Play, Square, Circle, Bell, Sliders } from 'lucide-react';
+import { Header } from './components/Header';
+import { NormalizedMidiEvent } from './types/midi';
+import { Loader2 } from 'lucide-react';
 import '@fontsource/geist-sans';
 import '@fontsource/geist-mono';
 
@@ -107,7 +109,7 @@ export const App: React.FC = () => {
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [isRecording, setIsRecording] = useState<boolean>(false);
   const [isMetronomeActive, setIsMetronomeActive] = useState<boolean>(false);
-  const [currentBeat, setCurrentBeat] = useState<number>(0);
+  const [, setCurrentBeat] = useState<number>(0);
   const isMetronomeActiveRef = useRef(isMetronomeActive);
   isMetronomeActiveRef.current = isMetronomeActive;
 
@@ -144,6 +146,7 @@ export const App: React.FC = () => {
   const [midiLearnMapping, setMidiLearnMapping] = useState<MidiLearnMapping>(loadSavedMidiMapping);
   const [lastLearnedInfo, setLastLearnedInfo] = useState<{ label: string; detail: string } | null>(null);
   const [activePads, setActivePads] = useState<Set<number>>(new Set());
+  const [midiEvents, setMidiEvents] = useState<NormalizedMidiEvent[]>([]);
 
   const learnStateRef = useRef({
     isActive: isMidiLearnActive,
@@ -488,6 +491,10 @@ export const App: React.FC = () => {
       audioBridge.setPitchBend(bend);
     });
 
+    const unsubMidiEvents = webMidi.onNormalizedMidiEvent((ev) => {
+      setMidiEvents((prev) => [ev, ...prev.slice(0, 49)]);
+    });
+
     return () => {
       webMidi.shouldInterceptNote = null;
       unsubDevices();
@@ -495,6 +502,7 @@ export const App: React.FC = () => {
       unsubCc();
       unsubTransport();
       unsubPitch();
+      unsubMidiEvents();
     };
   }, []);
 
@@ -958,6 +966,11 @@ export const App: React.FC = () => {
     }
   };
 
+  const handleHeaderMasterGainChange = (gain: number) => {
+    const intVal = Math.max(0, Math.min(127, Math.round(gain * 127)));
+    handleChangeFader(8, intVal);
+  };
+
   const handleChangeKnob = (index: number, value: number) => {
     setKnobs((prev) => {
       const next = [...prev];
@@ -1160,239 +1173,30 @@ export const App: React.FC = () => {
         />
       </div>
 
-      {/* Header Unificado Noir-Tech */}
-      <header className="relative z-20 border-b border-white/10 bg-[#08090d]/80 backdrop-blur-md px-4 sm:px-6 py-2.5 flex items-center justify-between gap-4 safe-horizontal">
-        <div className="flex items-center gap-3">
-          <button
-            type="button"
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={() => setIsInstrumentModalOpen(true)}
-            className="text-sm font-black tracking-widest text-white flex items-center select-none hover:opacity-90 transition cursor-pointer group focus:outline-none shrink-0"
-            style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif' }}
-            title="Seleccionar Instrumento"
-          >
-            <div className="w-7 h-7 rounded-lg overflow-hidden mr-2.5 border border-emerald-500/40 shadow-[0_0_12px_rgba(16,185,129,0.35)] flex items-center justify-center bg-black/60 shrink-0 group-hover:border-emerald-400 group-hover:shadow-[0_0_16px_rgba(16,185,129,0.6)] transition">
-              <img src="/app-icon.png" alt="Impact Sampler" className="w-full h-full object-contain" />
-            </div>
-            <h1>
-              IMPACT<span className="text-emerald-400 group-hover:drop-shadow-[0_0_10px_rgba(16,185,129,0.7)] transition-all">SAMPLER</span>
-            </h1>
-          </button>
-        </div>
-
-        {/* Selector de SoundFont / Catálogo Fotográfico (Bloque 5) */}
-        <button
-          type="button"
-          onMouseDown={(e) => e.preventDefault()}
-          onClick={() => setIsInstrumentModalOpen(true)}
-          className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-black/40 border border-white/10 hover:border-cyan-500/40 cursor-pointer transition text-xs font-mono group"
-          title="Abrir Catálogo Fotográfico de Instrumentos"
-        >
-          <Music className="w-3.5 h-3.5 text-cyan-400 group-hover:scale-110 transition" />
-          {isLoadingSf2 ? (
-            <span className="text-amber-300 font-medium text-[11px] flex items-center gap-1">
-              <Loader2 className="w-3 h-3 animate-spin" /> Cargando...
-            </span>
-          ) : (
-            <span className="text-cyan-300 font-medium text-[11px] truncate max-w-[170px]">
-              {currentSoundfont ? currentSoundfont.displayName : 'Explorar Instrumentos'}
-            </span>
-          )}
-          <Upload className="w-3 h-3 text-slate-500 group-hover:text-cyan-400 ml-0.5 transition" />
-        </button>
-
-        {/* Cápsula de Transporte Monolítica Noir-Tech */}
-        <div className="flex items-center gap-1 bg-[#101216] border border-white/10 rounded-lg p-1 shadow-inner">
-          {/* STOP Button */}
-          <button
-            type="button"
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={handleStop}
-            className={`w-7 h-7 flex items-center justify-center rounded-md transition-all active:scale-95 ${
-              !isPlaying
-                ? 'bg-zinc-800 text-zinc-300 border border-white/10 shadow-[inset_0_1px_0_rgba(255,255,255,0.1)]'
-                : 'text-zinc-500 hover:text-zinc-300 hover:bg-white/[0.04]'
-            }`}
-            title="Detener Reproducción (MIDI CC 105 / Esc)"
-          >
-            <Square className="w-3.5 h-3.5 fill-current" />
-          </button>
-
-          {/* PLAY / PAUSE Button */}
-          <button
-            type="button"
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={handleTogglePlay}
-            className={`w-7 h-7 flex items-center justify-center rounded-md transition-all active:scale-95 ${
-              isPlaying
-                ? 'bg-emerald-950/60 text-emerald-400 border border-emerald-500/50 shadow-[0_0_10px_rgba(16,185,129,0.35),inset_0_1px_0_rgba(255,255,255,0.1)]'
-                : 'text-zinc-400 hover:text-emerald-400 hover:bg-white/[0.04]'
-            }`}
-            title="Reproducir / Pausar (MIDI CC 106 / Barra Espaciadora)"
-          >
-            <Play className={`w-3.5 h-3.5 ${isPlaying ? 'fill-current' : ''}`} />
-          </button>
-
-          {/* RECORD Button */}
-          <button
-            type="button"
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={handleToggleRecord}
-            className={`w-7 h-7 flex items-center justify-center rounded-md transition-all active:scale-95 ${
-              isRecording
-                ? 'bg-rose-950/70 text-rose-400 border border-rose-500/50 shadow-[0_0_10px_rgba(244,63,94,0.45),inset_0_1px_0_rgba(255,255,255,0.1)] animate-pulse'
-                : 'text-zinc-400 hover:text-rose-400 hover:bg-white/[0.04]'
-            }`}
-            title="Grabar / Overdub (MIDI CC 107)"
-          >
-            <Circle className={`w-3.5 h-3.5 ${isRecording ? 'fill-current' : ''}`} />
-          </button>
-
-          {/* METRONOME CLICK Button */}
-          <button
-            type="button"
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={handleToggleMetronome}
-            className={`w-7 h-7 flex items-center justify-center rounded-md transition-all active:scale-95 ${
-              isMetronomeActive
-                ? 'bg-cyan-950/60 text-cyan-400 border border-cyan-500/50 shadow-[0_0_8px_rgba(6,182,212,0.3)]'
-                : 'text-zinc-500 hover:text-cyan-400 hover:bg-white/[0.04]'
-            }`}
-            title="Metrónomo / Clic Acústico (MIDI CC 47)"
-          >
-            <Bell className="w-3.5 h-3.5" />
-          </button>
-
-          {/* Medidor de 4 Beats Orgánico */}
-          <div className="flex items-center gap-1 px-1.5 py-0.5 ml-0.5 border-l border-white/10" title={`Beat: ${isPlaying ? currentBeat + 1 : '-'}/4`}>
-            {[0, 1, 2, 3].map((b) => {
-              const isCurrent = isPlaying && currentBeat === b;
-              const isAccent = b === 0;
-              return (
-                <div
-                  key={b}
-                  className={`w-1.5 h-3.5 rounded-[1px] transition-all duration-75 ${
-                    isCurrent
-                      ? isAccent
-                        ? 'bg-amber-400 shadow-[0_0_8px_#f59e0b]'
-                        : 'bg-emerald-400 shadow-[0_0_6px_#10b981]'
-                      : 'bg-zinc-800'
-                  }`}
-                />
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Telemetría y Controles de Audio */}
-        <div className="flex items-center gap-2.5 text-xs font-mono">
-          {/* Toggle y Control de Octava de Teclado QWERTY */}
-          <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-white/[0.04] border border-white/10 text-[11px]">
-            <button
-              type="button"
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => setQwertyEnabled((prev) => !prev)}
-              className={`flex items-center gap-1.5 px-1.5 py-0.5 rounded transition ${
-                qwertyEnabled
-                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
-                  : 'text-slate-500 hover:text-slate-300'
-              }`}
-              title="Activar/Desactivar tocar con teclado QWERTY de la PC"
-            >
-              <Keyboard className="w-3.5 h-3.5" />
-              <span className="font-bold">QWERTY</span>
-              <div className={`w-1.5 h-1.5 rounded-full ${qwertyEnabled ? 'bg-amber-400 shadow-[0_0_6px_#f59e0b]' : 'bg-slate-600'}`} />
-            </button>
-
-            {qwertyEnabled && (
-              <div className="flex items-center gap-1 pl-1 border-l border-white/10">
-                <button
-                  type="button"
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => setOctaveOffset((prev) => Math.max(MIN_OCTAVE_OFFSET, prev - 1))}
-                  disabled={octaveOffset <= MIN_OCTAVE_OFFSET}
-                  className="w-4 h-4 flex items-center justify-center rounded bg-black/40 hover:bg-white/10 text-slate-300 disabled:opacity-30 disabled:pointer-events-none text-[10px] font-bold"
-                  title="Octava Abajo (Atajo: Z)"
-                >
-                  -
-                </button>
-                <span className="text-amber-300 font-bold px-1 min-w-[28px] text-center" title="Octava actual (Atajos: Z para bajar, X para subir)">
-                  {`C${3 + octaveOffset}`}
-                </span>
-                <button
-                  type="button"
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => setOctaveOffset((prev) => Math.min(MAX_OCTAVE_OFFSET, prev + 1))}
-                  disabled={octaveOffset >= MAX_OCTAVE_OFFSET}
-                  className="w-4 h-4 flex items-center justify-center rounded bg-black/40 hover:bg-white/10 text-slate-300 disabled:opacity-30 disabled:pointer-events-none text-[10px] font-bold"
-                  title="Octava Arriba (Atajo: X)"
-                >
-                  +
-                </button>
-              </div>
-            )}
-            {/* Botón Toggle de MIDI Learn */}
-            <button
-              type="button"
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => {
-                setIsMidiLearnActive((prev) => !prev);
-                setSelectedLearnTarget(null);
-              }}
-              className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-[11px] font-mono transition ${
-                isMidiLearnActive
-                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/60 shadow-[0_0_12px_rgba(245,158,11,0.35)] animate-pulse'
-                  : 'bg-white/[0.04] text-slate-400 hover:text-amber-300 border border-white/10'
-              }`}
-              title={isMidiLearnActive ? 'Desactivar Modo MIDI Learn' : 'Activar MIDI Learn (Mapear perillas, faders y botones a tu hardware)'}
-            >
-              <Sliders className="w-3.5 h-3.5" />
-              <span className="font-bold hidden sm:inline">MIDI LEARN</span>
-              <div className={`w-1.5 h-1.5 rounded-full ${isMidiLearnActive ? 'bg-amber-400 shadow-[0_0_8px_#f59e0b]' : 'bg-slate-600'}`} />
-            </button>
-          </div>
-
-          {/* Control de Tempo BPM */}
-          <div className="flex items-center gap-1 px-2 py-1 rounded-md bg-white/[0.04] border border-white/10 text-[11px] font-mono">
-            <button
-              type="button"
-              onClick={() => handleChangeBpm(-5)}
-              className="w-4 h-4 flex items-center justify-center rounded bg-black/40 hover:bg-white/10 text-slate-300 text-[10px] font-bold transition"
-              title="Disminuir tempo (-5 BPM)"
-            >
-              -
-            </button>
-            <span className="text-emerald-300 font-bold px-1 min-w-[50px] text-center" title="Tempo del Secuenciador y Arpegiador">
-              {bpm} <span className="text-[9px] text-slate-500 font-normal">BPM</span>
-            </span>
-            <button
-              type="button"
-              onClick={() => handleChangeBpm(5)}
-              className="w-4 h-4 flex items-center justify-center rounded bg-black/40 hover:bg-white/10 text-slate-300 text-[10px] font-bold transition"
-              title="Aumentar tempo (+5 BPM)"
-            >
-              +
-            </button>
-          </div>
-
-          <div
-            className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-white/[0.04] border border-white/10 text-[11px]"
-            title={midiDevices.length > 0 ? `Dispositivo MIDI: ${midiDevices.join(', ')}` : 'Sin dispositivo MIDI conectado'}
-          >
-            <div className={`w-1.5 h-1.5 rounded-full ${midiDevices.length > 0 ? 'bg-emerald-400 shadow-[0_0_6px_#10b981]' : 'bg-zinc-700'}`} />
-            <span className="text-slate-400 text-[10.5px]">MIDI</span>
-          </div>
-
-          {!isAudioStarted && (
-            <button
-              onClick={handleStartAudio}
-              className="px-3 py-1 rounded-md bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-[11px] tracking-wider uppercase transition shadow-lg shadow-emerald-500/25 active:scale-95 flex items-center gap-1.5"
-            >
-              <Volume2 className="w-3.5 h-3.5" /> Activar Audio
-            </button>
-          )}
-        </div>
-      </header>
+      {/* Header Modular Noir-Tech (Márgenes sincronizados con la consola) */}
+      <Header
+        onOpenInstrumentSelect={() => setIsInstrumentModalOpen(true)}
+        currentSoundfont={currentSoundfont}
+        isLoadingSf2={isLoadingSf2}
+        midiEvents={midiEvents}
+        onClearMidiEvents={() => setMidiEvents([])}
+        midiDevices={midiDevices}
+        isAudioStarted={isAudioStarted}
+        onStartAudio={handleStartAudio}
+        audioSampleRate={audioBridge.getAudioContext()?.sampleRate || 48000}
+        audioLatencyMs={(audioBridge.getAudioContext()?.baseLatency || 0.005) * 1000}
+        masterGain={faders[8] / 127}
+        onMasterGainChange={handleHeaderMasterGainChange}
+        isMidiLearnActive={isMidiLearnActive}
+        onToggleMidiLearn={() => {
+          setIsMidiLearnActive((prev) => !prev);
+          setSelectedLearnTarget(null);
+        }}
+        qwertyEnabled={qwertyEnabled}
+        onToggleQwerty={() => setQwertyEnabled((prev) => !prev)}
+        octaveOffset={octaveOffset}
+        onOctaveOffsetChange={setOctaveOffset}
+      />
 
       {/* Barra Superior Informativa de Modo MIDI Learn */}
       {isMidiLearnActive && (
@@ -1499,30 +1303,7 @@ export const App: React.FC = () => {
         </div>
       </main>
 
-      {/* Barra Inferior de Estado */}
-      <footer className="relative z-20 border-t border-white/10 bg-[#08090d]/80 px-4 py-2 flex items-center justify-between text-[11px] font-mono text-slate-400 safe-horizontal">
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1.5 px-2 py-0.5 rounded bg-black/40 border border-white/10">
-            <span className={isPlaying ? 'text-emerald-400 font-bold' : 'text-slate-500 font-normal'}>
-              {isPlaying ? `▶ PLAY · Compás ${currentBeat + 1}/4` : '■ STOPPED'}
-            </span>
-            {isRecording && <span className="text-rose-400 font-bold ml-1 animate-pulse">● REC</span>}
-          </div>
-          {qwertyEnabled && (
-            <span className="hidden md:inline text-slate-500">
-              Teclado: <span className="text-amber-300/90 font-medium">A–;</span> Notas · <span className="text-amber-300/90 font-medium">Z/X</span> Octava ({`C${3 + octaveOffset}`})
-            </span>
-          )}
-        </div>
 
-        <div className="flex items-center gap-3">
-          <span className="text-slate-500">{bpm} BPM</span>
-          <span className="text-slate-600">·</span>
-          <span className="text-slate-400 truncate max-w-[200px]">
-            {currentSoundfont ? currentSoundfont.displayName : 'Sin instrumento'}
-          </span>
-        </div>
-      </footer>
 
       {/* Asistente Flotante con Ojos Vivos y Base de Datos FAQ */}
       <StudioAssistantAvatar
