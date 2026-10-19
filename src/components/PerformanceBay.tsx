@@ -158,7 +158,7 @@ export const PerformanceBay: React.FC<PerformanceBayProps> = ({
   const isFxPadsActive = fxRouting === "pads" || fxRouting === "both";
 
   const fxBtnBase =
-    "w-full h-7 px-2 rounded-md flex items-center justify-center gap-1.5 font-mono text-[9.5px] tracking-wider transition-all active:scale-95 cursor-pointer shadow-[inset_0_1px_0_rgba(255,255,255,0.06),0_1px_3px_rgba(0,0,0,0.5)]";
+    "w-full h-6 lg:h-7 px-1.5 lg:px-2 rounded-md flex items-center justify-center gap-1 lg:gap-1.5 font-mono text-[8.5px] lg:text-[9.5px] tracking-wider transition-all active:scale-95 cursor-pointer shadow-[inset_0_1px_0_rgba(255,255,255,0.06),0_1px_3px_rgba(0,0,0,0.5)]";
   const fxBtnOff =
     "bg-[#18191e] text-zinc-400 hover:text-zinc-200 hover:bg-[#24262d] border border-white/10 hover:border-white/20 font-bold";
   const fxBtnCyan =
@@ -177,9 +177,9 @@ export const PerformanceBay: React.FC<PerformanceBayProps> = ({
   );
 
   return (
-    <div className="w-full flex flex-col items-center justify-center gap-2 relative">
+    <div className="w-full flex flex-col items-center justify-center gap-1.5 lg:gap-2 relative">
       {/* 1. Cápsula Unificada de Controles ARP [ ARP | HOLD | ⚙ ] */}
-      <div className="flex items-stretch w-full h-7 rounded-md bg-[#18191e] border border-white/10 shadow-[inset_0_1px_0_rgba(255,255,255,0.06),0_1px_3px_rgba(0,0,0,0.5)] overflow-hidden">
+      <div className="flex items-stretch w-full h-6 lg:h-7 rounded-md bg-[#18191e] border border-white/10 shadow-[inset_0_1px_0_rgba(255,255,255,0.06),0_1px_3px_rgba(0,0,0,0.5)] overflow-hidden">
         {/* Segmento ARP */}
         <button
           type="button"
@@ -191,7 +191,7 @@ export const PerformanceBay: React.FC<PerformanceBayProps> = ({
               ? "Desactivar Arpegiador"
               : "Activar Arpegiador"
           }
-          className={`flex-1 h-full px-1.5 flex items-center justify-center gap-1 font-mono text-[9.5px] tracking-wider transition-all cursor-pointer border-r border-white/10 ${
+          className={`flex-1 h-full px-1 lg:px-1.5 flex items-center justify-center gap-1 font-mono text-[8.5px] lg:text-[9.5px] tracking-wider transition-all cursor-pointer border-r border-white/10 ${
             isArpLearnSelected
               ? "border-2 border-amber-400 bg-amber-950/40 text-amber-200 shadow-[0_0_15px_rgba(245,158,11,0.8)] animate-pulse font-bold"
               : isMidiLearnActive
@@ -217,7 +217,7 @@ export const PerformanceBay: React.FC<PerformanceBayProps> = ({
               ? "Desactivar Hold / Latch"
               : "Activar Hold / Latch"
           }
-          className={`flex-1 h-full px-1.5 flex items-center justify-center gap-1 font-mono text-[9.5px] tracking-wider transition-all cursor-pointer border-r border-white/10 ${
+          className={`flex-1 h-full px-1 lg:px-1.5 flex items-center justify-center gap-1 font-mono text-[8.5px] lg:text-[9.5px] tracking-wider transition-all cursor-pointer border-r border-white/10 ${
             isHoldLearnSelected
               ? "border-2 border-amber-400 bg-amber-950/40 text-amber-200 shadow-[0_0_15px_rgba(245,158,11,0.8)] animate-pulse font-bold"
               : isMidiLearnActive
@@ -238,13 +238,13 @@ export const PerformanceBay: React.FC<PerformanceBayProps> = ({
           type="button"
           onClick={() => setIsPopoverOpen(!isPopoverOpen)}
           title="Ajustes del Arpegiador"
-          className={`w-7 h-full flex items-center justify-center shrink-0 transition-all cursor-pointer ${
+          className={`w-6 lg:w-7 h-full flex items-center justify-center shrink-0 transition-all cursor-pointer ${
             isPopoverOpen
               ? "bg-[#24262d] text-emerald-300 shadow-[inset_0_0_8px_rgba(52,211,153,0.35)]"
               : "text-zinc-500 hover:text-zinc-200 hover:bg-white/[0.04]"
           }`}
         >
-          <Settings className="w-3.5 h-3.5" />
+          <Settings className="w-3 h-3 lg:w-3.5 lg:h-3.5" />
         </button>
       </div>
 

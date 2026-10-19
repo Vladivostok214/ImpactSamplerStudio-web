@@ -30,9 +30,13 @@ const DRUM_NOTE_TO_PAD: Record<number, number> = {
 
 class ImpactAudioProcessor extends AudioWorkletProcessor {
   private engine: WasmEngine | null = null;
+  private drumEngine: WasmEngine | null = null;
   private soundFontLoaded = false;
+  private drumLoaded = false;
   private lastStep = -1;
   private isRecording = false;
+  private drumLeft = new Float32Array(128);
+  private drumRight = new Float32Array(128);
 
   constructor(options?: { processorOptions?: { wasmModule?: WebAssembly.Module } }) {
     super();
@@ -42,6 +46,7 @@ class ImpactAudioProcessor extends AudioWorkletProcessor {
       try {
         initSync({ module: options.processorOptions.wasmModule });
         this.engine = new WasmEngine(sampleRate);
+        this.drumEngine = new WasmEngine(sampleRate);
       } catch (err: any) {
         this.port.postMessage({ type: 'WASM_ERROR', error: err?.message || String(err) });
       }
@@ -49,6 +54,10 @@ class ImpactAudioProcessor extends AudioWorkletProcessor {
 
     // 2. Canal de mensajes bidireccional de baja latencia con el hilo principal
     this.port.onmessage = (event) => this.handleMessage(event.data);
+  }
+
+  private getSeqEngine(): WasmEngine | null {
+    return this.drumLoaded && this.drumEngine ? this.drumEngine : this.engine;
   }
 
   private handleMessage(data: any): void {
@@ -60,6 +69,7 @@ class ImpactAudioProcessor extends AudioWorkletProcessor {
         if (!this.engine) {
           initSync({ module: data.wasmModule });
           this.engine = new WasmEngine(sampleRate);
+          this.drumEngine = new WasmEngine(sampleRate);
         }
         this.port.postMessage({ type: 'WASM_READY' });
       } catch (err: any) {
@@ -69,6 +79,7 @@ class ImpactAudioProcessor extends AudioWorkletProcessor {
     }
 
     if (!this.engine) return;
+    const seqEngine = this.getSeqEngine()!;
 
     switch (data.type) {
       case 'SET_RECORDING':
@@ -79,18 +90,23 @@ class ImpactAudioProcessor extends AudioWorkletProcessor {
         const channel = data.channel ?? 0;
         const key = data.key;
         const velocity = data.velocity ?? 100;
-        this.engine.note_on(channel, key, velocity);
+
+        if (data.target === 'drum' && this.drumLoaded && this.drumEngine) {
+          this.drumEngine.note_on(channel, key, velocity);
+        } else {
+          this.engine.note_on(channel, key, velocity);
+        }
 
         // Overdub en tiempo real si el secuenciador está reproduciendo y en modo grabación
-        if (this.isRecording && this.engine.seq_is_playing()) {
+        if (this.isRecording && seqEngine.seq_is_playing()) {
           const padIdx = DRUM_NOTE_TO_PAD[key];
           if (padIdx !== undefined) {
-            const currentStep = this.engine.seq_get_current_step();
-            const pattern = this.getFlatPatternGrid();
+            const currentStep = seqEngine.seq_get_current_step();
+            const pattern = this.getFlatPatternGrid(seqEngine);
             // Si el paso no está activo, activarlo y enviar actualización del patrón
             if (pattern[padIdx][currentStep] === 0) {
-              const active = this.engine.seq_toggle_step(padIdx, currentStep);
-              const updatedPattern = this.getFlatPatternGrid();
+              const active = seqEngine.seq_toggle_step(padIdx, currentStep);
+              const updatedPattern = this.getFlatPatternGrid(seqEngine);
               this.port.postMessage({
                 type: 'SEQ_PATTERN_UPDATED',
                 pattern: updatedPattern,
@@ -105,19 +121,33 @@ class ImpactAudioProcessor extends AudioWorkletProcessor {
       }
 
       case 'NOTE_OFF':
-        this.engine.note_off(data.channel ?? 0, data.key);
+        if (data.target === 'drum' && this.drumLoaded && this.drumEngine) {
+          this.drumEngine.note_off(data.channel ?? 0, data.key);
+        } else {
+          this.engine.note_off(data.channel ?? 0, data.key);
+        }
         break;
 
       case 'NOTE_OFF_ALL':
         this.engine.note_off_all(data.immediate ?? false);
+        this.drumEngine?.note_off_all(data.immediate ?? false);
         break;
 
       case 'LOAD_SOUNDFONT':
         try {
           const bytes = new Uint8Array(data.buffer);
-          this.engine.load_soundfont(bytes);
-          this.soundFontLoaded = true;
-          this.port.postMessage({ type: 'SOUNDFONT_LOADED', loadId: data.loadId, name: data.name });
+          if (data.target === 'drum' && this.drumEngine) {
+            this.drumEngine.load_soundfont(bytes);
+            this.drumLoaded = true;
+          } else {
+            this.engine.load_soundfont(bytes);
+            this.soundFontLoaded = true;
+            if (!this.drumLoaded && this.drumEngine && String(data.name || '').toLowerCase().includes('rx7')) {
+              this.drumEngine.load_soundfont(bytes);
+              this.drumLoaded = true;
+            }
+          }
+          this.port.postMessage({ type: 'SOUNDFONT_LOADED', loadId: data.loadId, name: data.name, target: data.target });
         } catch (err: any) {
           this.port.postMessage({ type: 'SOUNDFONT_ERROR', loadId: data.loadId, error: err?.message || String(err) });
         }
@@ -125,15 +155,22 @@ class ImpactAudioProcessor extends AudioWorkletProcessor {
 
       case 'SET_KNOB':
         this.engine.set_knob(data.index, data.value);
+        this.drumEngine?.set_knob(data.index, data.value);
         break;
 
       case 'SET_MASTER_FADER':
         this.engine.set_master_fader(data.value);
+        this.drumEngine?.set_master_fader(data.value);
         break;
 
-      case 'SET_FX_ROUTING':
-        this.engine.set_fx_routing(data.routing);
+      case 'SET_FX_ROUTING': {
+        const r = String(data.routing || 'off');
+        const keysFx = r === 'keys' || r === 'both' ? 'keys' : 'off';
+        const padsFx = r === 'pads' || r === 'both' ? 'pads' : 'off';
+        this.engine.set_fx_routing(keysFx);
+        this.drumEngine?.set_fx_routing(padsFx);
         break;
+      }
 
       case 'SET_PITCH_BEND':
         this.engine.set_pitch_bend(data.channel ?? 0, data.bend);
@@ -149,6 +186,7 @@ class ImpactAudioProcessor extends AudioWorkletProcessor {
 
       case 'SET_BPM':
         this.engine.set_bpm(data.bpm);
+        this.drumEngine?.set_bpm(data.bpm);
         break;
 
       case 'SET_ARP_ENABLED':
@@ -180,81 +218,84 @@ class ImpactAudioProcessor extends AudioWorkletProcessor {
           data.state.octaves,
           data.bpm ?? 120.0
         );
+        if (data.bpm !== undefined) {
+          this.drumEngine?.set_bpm(data.bpm);
+        }
         break;
 
       case 'SEQ_PLAY':
-        this.engine.seq_play();
+        seqEngine.seq_play();
         break;
 
       case 'SEQ_PAUSE':
-        this.engine.seq_pause();
+        seqEngine.seq_pause();
         break;
 
       case 'SEQ_STOP':
-        this.engine.seq_stop();
+        seqEngine.seq_stop();
         this.lastStep = -1;
         this.isRecording = false;
         break;
 
       case 'SEQ_TOGGLE_PLAY': {
-        const isPlaying = this.engine.seq_toggle_play();
+        const isPlaying = seqEngine.seq_toggle_play();
         this.port.postMessage({ type: 'SEQ_PLAY_STATE', isPlaying });
         break;
       }
 
       case 'SEQ_TOGGLE_STEP': {
-        const active = this.engine.seq_toggle_step(data.padIdx, data.stepIdx);
-        const pattern = this.getFlatPatternGrid();
+        const active = seqEngine.seq_toggle_step(data.padIdx, data.stepIdx);
+        const pattern = this.getFlatPatternGrid(seqEngine);
         this.port.postMessage({ type: 'SEQ_PATTERN_UPDATED', pattern, padIdx: data.padIdx, stepIdx: data.stepIdx, active });
         break;
       }
 
       case 'SEQ_CLEAR_TRACK': {
-        this.engine.seq_clear_track(data.padIdx);
-        const pattern = this.getFlatPatternGrid();
+        seqEngine.seq_clear_track(data.padIdx);
+        const pattern = this.getFlatPatternGrid(seqEngine);
         this.port.postMessage({ type: 'SEQ_PATTERN_UPDATED', pattern });
         break;
       }
 
       case 'SEQ_CLEAR_ALL': {
-        this.engine.seq_clear_all();
-        const pattern = this.getFlatPatternGrid();
+        seqEngine.seq_clear_all();
+        const pattern = this.getFlatPatternGrid(seqEngine);
         this.port.postMessage({ type: 'SEQ_PATTERN_UPDATED', pattern });
         break;
       }
 
       case 'SEQ_SET_RESOLUTION':
-        this.engine.seq_set_resolution(data.resolution);
+        seqEngine.seq_set_resolution(data.resolution);
         break;
 
       case 'SEQ_TOGGLE_BANK': {
-        const bank = this.engine.seq_toggle_bank();
-        const pattern = this.getFlatPatternGrid();
+        const bank = seqEngine.seq_toggle_bank();
+        const pattern = this.getFlatPatternGrid(seqEngine);
         this.port.postMessage({ type: 'SEQ_BANK_UPDATED', bank, pattern });
         break;
       }
 
       case 'SEQ_UNDO': {
-        const success = this.engine.seq_undo();
+        const success = seqEngine.seq_undo();
         if (success) {
-          const pattern = this.getFlatPatternGrid();
+          const pattern = this.getFlatPatternGrid(seqEngine);
           this.port.postMessage({ type: 'SEQ_PATTERN_UPDATED', pattern });
         }
         break;
       }
 
       case 'SEQ_GET_PATTERN': {
-        const pattern = this.getFlatPatternGrid();
+        const pattern = this.getFlatPatternGrid(seqEngine);
         this.port.postMessage({ type: 'SEQ_PATTERN_DATA', pattern });
         break;
       }
     }
   }
 
-  private getFlatPatternGrid(): number[][] {
+  private getFlatPatternGrid(targetEngine: WasmEngine | null = this.getSeqEngine()): number[][] {
     const grid: number[][] = Array.from({ length: 8 }, () => new Array(32).fill(0));
-    if (!this.engine) return grid;
-    const flat = this.engine.seq_get_pattern_flat();
+    if (!targetEngine) return grid;
+    const flat = targetEngine.seq_get_pattern_flat();
     for (let pad = 0; pad < 8; pad++) {
       for (let step = 0; step < 32; step++) {
         grid[pad][step] = flat[pad * 32 + step];
@@ -269,19 +310,43 @@ class ImpactAudioProcessor extends AudioWorkletProcessor {
 
     const left = output[0];
     const right = output[1];
+    const len = left.length;
 
-    if (!this.engine || !this.soundFontLoaded) {
+    if (!this.engine || (!this.soundFontLoaded && !this.drumLoaded)) {
       left.fill(0);
       right.fill(0);
       return true;
     }
 
     try {
-      this.engine.render(left, right);
+      // 1. Renderizar bus melódico (KEYS)
+      if (this.soundFontLoaded) {
+        this.engine.render(left, right);
+      } else {
+        left.fill(0);
+        right.fill(0);
+      }
 
-      // Si el secuenciador está activo, notificar únicamente cuando cambia el step
-      if (this.engine.seq_is_playing()) {
-        const currentStep = this.engine.seq_get_current_step();
+      // 2. Renderizar y mezclar bus de percusión / secuenciador (PADS / SEQ) sin asignaciones de memoria
+      if (this.drumLoaded && this.drumEngine) {
+        if (this.drumLeft.length < len) {
+          this.drumLeft = new Float32Array(len);
+          this.drumRight = new Float32Array(len);
+        }
+        const dLeft = this.drumLeft.subarray(0, len);
+        const dRight = this.drumRight.subarray(0, len);
+        this.drumEngine.render(dLeft, dRight);
+
+        for (let i = 0; i < len; i++) {
+          left[i] += dLeft[i];
+          right[i] += dRight[i];
+        }
+      }
+
+      // 3. Si el secuenciador está activo, notificar únicamente cuando cambia el step
+      const seqEngine = this.getSeqEngine();
+      if (seqEngine && seqEngine.seq_is_playing()) {
+        const currentStep = seqEngine.seq_get_current_step();
         if (currentStep !== this.lastStep) {
           this.lastStep = currentStep;
           this.port.postMessage({ type: 'SEQ_STEP_CHANGE', step: currentStep });

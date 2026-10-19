@@ -24,7 +24,6 @@ import {
   ACTION_LABELS,
 } from './types/midiLearn';
 import { Header } from './components/Header';
-import { NormalizedMidiEvent } from './types/midi';
 import { Loader2 } from 'lucide-react';
 import '@fontsource/geist-sans';
 import '@fontsource/geist-mono';
@@ -32,15 +31,17 @@ import '@fontsource/geist-mono';
 async function downloadSf2Buffer(
   downloadUrl: string,
   fileSizeMb: number,
-  onProgress?: (pct: number) => void
+  onProgress?: (pct: number) => void,
+  signal?: AbortSignal
 ): Promise<ArrayBuffer> {
   const proxyUrl = `/api/download?url=${encodeURIComponent(downloadUrl)}`;
   let response: Response;
   try {
-    response = await fetch(proxyUrl);
+    response = await fetch(proxyUrl, { signal });
     if (!response.ok) throw new Error(`Proxy status: ${response.status}`);
-  } catch {
-    response = await fetch(downloadUrl);
+  } catch (err: any) {
+    if (err?.name === 'AbortError') throw err;
+    response = await fetch(downloadUrl, { signal });
   }
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
@@ -53,6 +54,14 @@ async function downloadSf2Buffer(
     onProgress?.(100);
     return buf;
   }
+
+  let lastReportedPct = -1;
+  const reportPct = (pct: number) => {
+    if (pct !== lastReportedPct) {
+      lastReportedPct = pct;
+      onProgress?.(pct);
+    }
+  };
 
   // Si conocemos el tamaño exacto por Content-Length, pre-asignar un único buffer contiguo (evita duplicar >500 MB en RAM)
   if (exactLength > 0) {
@@ -74,11 +83,11 @@ async function downloadSf2Buffer(
         }
         receivedBytes += value.length;
         const pct = Math.min(99, Math.round((receivedBytes / totalBytes) * 100));
-        onProgress?.(pct);
+        reportPct(pct);
       }
     }
 
-    onProgress?.(100);
+    reportPct(100);
     if (!overflowChunks) {
       return receivedBytes === exactLength
         ? preallocated.buffer
@@ -103,7 +112,7 @@ async function downloadSf2Buffer(
       chunks.push(value);
       receivedBytes += value.length;
       const pct = Math.min(99, Math.round((receivedBytes / totalBytes) * 100));
-      onProgress?.(pct);
+      reportPct(pct);
     }
   }
   const full = new Uint8Array(receivedBytes);
@@ -112,7 +121,7 @@ async function downloadSf2Buffer(
     full.set(ch, off);
     off += ch.length;
   }
-  onProgress?.(100);
+  reportPct(100);
   return full.buffer;
 }
 
@@ -182,12 +191,30 @@ export const App: React.FC = () => {
   const [downloadProgress, setDownloadProgress] = useState<{ [id: string]: number }>({});
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
 
+  // Referencias para Pre-carga Silenciosa en Segundo Plano (0 re-renders mientras el modal está cerrado)
+  const isInstrumentModalOpenRef = useRef<boolean>(false);
+  const bgDownloadingIdRef = useRef<string | null>(null);
+  const bgDownloadProgressRef = useRef<{ [id: string]: number }>({});
+  const bgAbortControllerRef = useRef<AbortController | null>(null);
+  const bgQueueRunningRef = useRef<boolean>(false);
+  const bgAutoActivateIdRef = useRef<string | null>(null);
+  const deletedInSessionRef = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    isInstrumentModalOpenRef.current = isInstrumentModalOpen;
+    if (isInstrumentModalOpen && bgDownloadingIdRef.current) {
+      setDownloadingId(bgDownloadingIdRef.current);
+      setDownloadProgress({ ...bgDownloadProgressRef.current });
+    }
+  }, [isInstrumentModalOpen]);
+
   // Splash Inicial Noir y Auto-carga de Grand Piano
   const [isBooting, setIsBooting] = useState<boolean>(() => !localStorage.getItem('impact_has_cached_instruments'));
   const [bootFadeOut, setBootFadeOut] = useState<boolean>(false);
   const [bootStatusText, setBootStatusText] = useState<string>('Iniciando motor de audio...');
   const [bootProgress, setBootProgress] = useState<number | null>(null);
   const lastMelodicSoundfontRef = useRef<SoundFontInfo | null>(null);
+  const rx7SoundfontRef = useRef<SoundFontInfo | null>(null);
 
   // Estados de MIDI Learn y Mapeo Dinámico
   const [isMidiLearnActive, setIsMidiLearnActive] = useState<boolean>(false);
@@ -195,7 +222,6 @@ export const App: React.FC = () => {
   const [midiLearnMapping, setMidiLearnMapping] = useState<MidiLearnMapping>(loadSavedMidiMapping);
   const [lastLearnedInfo, setLastLearnedInfo] = useState<{ label: string; detail: string } | null>(null);
   const [activePads, setActivePads] = useState<Set<number>>(new Set());
-  const [midiEvents, setMidiEvents] = useState<NormalizedMidiEvent[]>([]);
 
   const learnStateRef = useRef({
     isActive: isMidiLearnActive,
@@ -292,6 +318,58 @@ export const App: React.FC = () => {
   const transportHandlersRef = useRef({ handleTogglePlay, handleStop, handleToggleRecord, handleToggleMetronome, handleChangeBpm: (_delta: number) => {} });
   transportHandlersRef.current = { handleTogglePlay, handleStop, handleToggleRecord, handleToggleMetronome, handleChangeBpm: (delta: number) => handleChangeBpm(delta) };
 
+  // Coalescencia por requestAnimationFrame para actualizaciones de alta frecuencia (MIDI CC / Pitch Bend / Mouse Drag)
+  const pendingFadersRef = useRef<Record<number, number>>({});
+  const pendingKnobsRef = useRef<Record<number, number>>({});
+  const pendingModWheelRef = useRef<number | null>(null);
+  const pendingPitchBendRef = useRef<number | null>(null);
+  const uiFlushRafRef = useRef<number | null>(null);
+
+  const scheduleUiFlush = () => {
+    if (uiFlushRafRef.current !== null) return;
+    uiFlushRafRef.current = requestAnimationFrame(() => {
+      uiFlushRafRef.current = null;
+
+      const faderUpdates = pendingFadersRef.current;
+      const faderKeys = Object.keys(faderUpdates);
+      if (faderKeys.length > 0) {
+        pendingFadersRef.current = {};
+        setFaders((prev) => {
+          const next = [...prev];
+          for (const k of faderKeys) {
+            next[Number(k)] = faderUpdates[Number(k)];
+          }
+          return next;
+        });
+      }
+
+      const knobUpdates = pendingKnobsRef.current;
+      const knobKeys = Object.keys(knobUpdates);
+      if (knobKeys.length > 0) {
+        pendingKnobsRef.current = {};
+        setKnobs((prev) => {
+          const next = [...prev];
+          for (const k of knobKeys) {
+            next[Number(k)] = knobUpdates[Number(k)];
+          }
+          return next;
+        });
+      }
+
+      if (pendingModWheelRef.current !== null) {
+        const mw = pendingModWheelRef.current;
+        pendingModWheelRef.current = null;
+        setModWheel(mw);
+      }
+
+      if (pendingPitchBendRef.current !== null) {
+        const pb = pendingPitchBendRef.current;
+        pendingPitchBendRef.current = null;
+        setPitchBend(pb);
+      }
+    });
+  };
+
   useEffect(() => {
     // Interceptar notas si estamos aprendiendo un Pad o Acción para evitar que suenen
     webMidi.shouldInterceptNote = (_note: number, _vel: number) => {
@@ -302,6 +380,14 @@ export const App: React.FC = () => {
         }
       }
       return false;
+    };
+
+    // Enrutar notas MIDI físicas al motor de batería (drumEngine) en modo SEQ o Canal 10 MIDI
+    webMidi.resolveNoteTarget = (_note: number, channel: number) => {
+      if (channel === 9 || workstationModeRef.current === 'seq') {
+        return 'drum';
+      }
+      return 'melodic';
     };
 
     // 1. Inicializar Web MIDI API
@@ -478,14 +564,11 @@ export const App: React.FC = () => {
         else if (controller === 79 || controller === 46) matchedFaderIdx = 8;
       }
       if (matchedFaderIdx !== null) {
-        setFaders((prev) => {
-          const next = [...prev];
-          next[matchedFaderIdx!] = value;
-          return next;
-        });
         if (matchedFaderIdx === 8) {
           audioBridge.setMasterFader(value);
         }
+        pendingFadersRef.current[matchedFaderIdx] = value;
+        scheduleUiFlush();
         return;
       }
 
@@ -503,19 +586,17 @@ export const App: React.FC = () => {
         else if (controller >= 56 && controller <= 63) matchedKnobIdx = controller - 56;
       }
       if (matchedKnobIdx !== null) {
-        setKnobs((prev) => {
-          const next = [...prev];
-          next[matchedKnobIdx!] = value;
-          return next;
-        });
         audioBridge.setKnob(matchedKnobIdx, value);
+        pendingKnobsRef.current[matchedKnobIdx] = value;
+        scheduleUiFlush();
         return;
       }
 
       // 4. Modulation Wheel (CC 1)
       if (controller === 1) {
-        setModWheel(value);
         audioBridge.setModWheel(value);
+        pendingModWheelRef.current = value;
+        scheduleUiFlush();
       }
     });
 
@@ -536,22 +617,22 @@ export const App: React.FC = () => {
     });
 
     const unsubPitch = webMidi.onPitchBend((bend) => {
-      setPitchBend(bend);
       audioBridge.setPitchBend(bend);
-    });
-
-    const unsubMidiEvents = webMidi.onNormalizedMidiEvent((ev) => {
-      setMidiEvents((prev) => [ev, ...prev.slice(0, 49)]);
+      pendingPitchBendRef.current = bend;
+      scheduleUiFlush();
     });
 
     return () => {
       webMidi.shouldInterceptNote = null;
+      webMidi.resolveNoteTarget = null;
       unsubDevices();
       unsubNotes();
       unsubCc();
       unsubTransport();
       unsubPitch();
-      unsubMidiEvents();
+      if (uiFlushRafRef.current !== null) {
+        cancelAnimationFrame(uiFlushRafRef.current);
+      }
     };
   }, []);
 
@@ -646,9 +727,15 @@ export const App: React.FC = () => {
       const list = await SoundFontStorage.list();
       setSavedSoundfonts(list);
 
+      const isRx7 = filename.toLowerCase().includes('rx7');
+
       // 2. Transferir propiedad del ArrayBuffer al hilo del AudioWorklet sin clonar en RAM
       await audioBridge.initialize();
-      await audioBridge.loadSoundFont(data, filename, true);
+      if (isRx7) {
+        await audioBridge.loadDrumSoundFont(data, filename, true);
+      } else {
+        await audioBridge.loadSoundFont(data, filename, true);
+      }
 
       const sfInfo: SoundFontInfo = {
         id,
@@ -670,11 +757,14 @@ export const App: React.FC = () => {
       setActivePresetIndex(0);
       setIsAudioStarted(true);
 
-      if (filename.toLowerCase().includes('rx7')) {
+      if (isRx7) {
+        rx7SoundfontRef.current = sfInfo;
+        workstationModeRef.current = 'seq';
         setWorkstationMode('seq');
       } else {
-        setWorkstationMode('keys');
         lastMelodicSoundfontRef.current = sfInfo;
+        workstationModeRef.current = 'keys';
+        setWorkstationMode('keys');
       }
     } catch (err) {
       console.error('Error cargando SoundFont:', err);
@@ -684,7 +774,110 @@ export const App: React.FC = () => {
     }
   };
 
-  // Inicialización de Almacenamiento Local IndexedDB, Auto-carga de Grand Piano y Splash Screen Inteligente
+  // Cola de pre-descarga silenciosa en segundo plano para los 4 instrumentos de fábrica (0 bloqueo de UI/Audio)
+  const startBackgroundPrefetchQueue = async () => {
+    if (bgQueueRunningRef.current) return;
+    bgQueueRunningRef.current = true;
+
+    try {
+      // Orden de prioridad por peso: RX7 (19.3 MB) -> Piano (126.7 MB) -> Mellotron (116.2 MB) -> Rhodes (522.1 MB)
+      const priorityIds = [
+        'Yamaha_RX7_Drums.sf2',
+        'Piano - Realtime.sf2',
+        'Mellotron.sf2',
+        'Rhodes (from Dream Piano).sf2',
+      ];
+      const orderedFactory = priorityIds
+        .map((id) => FACTORY_INSTRUMENTS.find((f) => f.id === id))
+        .filter((f): f is FactoryInstrumentDef => Boolean(f));
+
+      for (const inst of orderedFactory) {
+        if (deletedInSessionRef.current.has(inst.id)) continue;
+
+        const currentList = await SoundFontStorage.list();
+        if (currentList.some((s) => s.id === inst.id)) continue;
+
+        const abortCtrl = new AbortController();
+        bgAbortControllerRef.current = abortCtrl;
+        bgDownloadingIdRef.current = inst.id;
+        bgDownloadProgressRef.current[inst.id] = 0;
+
+        if (isInstrumentModalOpenRef.current) {
+          setDownloadingId(inst.id);
+          setDownloadProgress((prev) => ({ ...prev, [inst.id]: 0 }));
+        }
+
+        try {
+          const buf = await downloadSf2Buffer(
+            inst.downloadUrl,
+            inst.fileSizeMb,
+            (pct) => {
+              bgDownloadProgressRef.current[inst.id] = pct;
+              // Solo actualizar estado React si el modal de instrumentos está abierto o el usuario solicitó activarlo
+              if (isInstrumentModalOpenRef.current || bgAutoActivateIdRef.current === inst.id) {
+                setDownloadProgress((prev) => ({ ...prev, [inst.id]: pct }));
+              }
+            },
+            abortCtrl.signal
+          );
+
+          await SoundFontStorage.save({
+            id: inst.id,
+            filename: inst.filename,
+            displayName: inst.displayName,
+            description: inst.description,
+            category: 'Factory',
+            fileSizeMb: inst.fileSizeMb,
+            data: buf,
+            savedAt: Date.now(),
+          });
+
+          // Si es RX7 y el motor de batería aún no estaba cargado, cargarlo en drumEngine
+          if (inst.filename.toLowerCase().includes('rx7') && !audioBridge.isDrumLoaded()) {
+            const rx7Presets = parseSf2Presets(buf);
+            await audioBridge.initialize();
+            await audioBridge.loadDrumSoundFont(buf, inst.filename, true);
+            rx7SoundfontRef.current = {
+              id: inst.id,
+              filename: inst.filename,
+              displayName: inst.displayName,
+              description: inst.description,
+              category: 'Factory',
+              fileSizeMb: inst.fileSizeMb,
+              presets: rx7Presets,
+            };
+          }
+
+          const updatedList = await SoundFontStorage.list();
+          setSavedSoundfonts(updatedList);
+
+          // Si el usuario hizo clic en este instrumento mientras se descargaba en segundo plano, activarlo de inmediato
+          if (bgAutoActivateIdRef.current === inst.id) {
+            bgAutoActivateIdRef.current = null;
+            await handleSelectStored(inst.id);
+          }
+        } catch (err: any) {
+          if (err?.name === 'AbortError') {
+            // Descarga en segundo plano pausada para dar prioridad a una selección manual del usuario
+            break;
+          }
+          console.warn(`Aviso pre-descargando ${inst.displayName} en segundo plano:`, err);
+        } finally {
+          if (bgDownloadingIdRef.current === inst.id) {
+            bgDownloadingIdRef.current = null;
+            bgAbortControllerRef.current = null;
+            if (isInstrumentModalOpenRef.current) {
+              setDownloadingId(null);
+            }
+          }
+        }
+      }
+    } finally {
+      bgQueueRunningRef.current = false;
+    }
+  };
+
+  // Inicialización de Almacenamiento Local IndexedDB, Auto-carga de Grand Piano + RX7 en motores duales y Splash Screen Inteligente
   useEffect(() => {
     let isMounted = true;
     const bootApp = async () => {
@@ -710,9 +903,14 @@ export const App: React.FC = () => {
           const stored = await SoundFontStorage.get(targetId);
 
           if (stored && isMounted) {
+            const isTargetRx7 = stored.filename.toLowerCase().includes('rx7');
             const presets = parseSf2Presets(stored.data);
             await audioBridge.initialize();
-            await audioBridge.loadSoundFont(stored.data, stored.filename, true);
+            if (isTargetRx7) {
+              await audioBridge.loadDrumSoundFont(stored.data, stored.filename, true);
+            } else {
+              await audioBridge.loadSoundFont(stored.data, stored.filename, true);
+            }
 
             // Sincronizar DSP y Arpegiador en WASM
             knobs.forEach((val, idx) => audioBridge.setKnob(idx, val));
@@ -732,32 +930,59 @@ export const App: React.FC = () => {
             setCurrentSoundfont(sfInfo);
             setActivePresetIndex(0);
             setIsAudioStarted(true);
-            if (!stored.filename.toLowerCase().includes('rx7')) {
+            if (!isTargetRx7) {
               lastMelodicSoundfontRef.current = sfInfo;
+              workstationModeRef.current = 'keys';
               setWorkstationMode('keys');
             } else {
+              rx7SoundfontRef.current = sfInfo;
+              workstationModeRef.current = 'seq';
               setWorkstationMode('seq');
             }
           }
 
-          // Si falta RX7 por alguna razón, descargarlo silenciosamente en segundo plano
-          if (!hasRx7) {
-            downloadSf2Buffer(rx7Def.downloadUrl, rx7Def.fileSizeMb)
-              .then(async (rx7Buf) => {
-                await SoundFontStorage.save({
-                  id: rx7Def.id,
-                  filename: rx7Def.filename,
-                  displayName: rx7Def.displayName,
-                  description: rx7Def.description,
-                  category: 'Factory',
-                  fileSizeMb: rx7Def.fileSizeMb,
-                  data: rx7Buf,
-                  savedAt: Date.now(),
-                });
-                const updatedList = await SoundFontStorage.list();
-                if (isMounted) setSavedSoundfonts(updatedList);
+          // Pre-cargar en segundo plano el otro motor (RX7 en drumEngine o Grand Piano en melodicEngine) para cambio KEYS <-> SEQ en 0 ms
+          if (hasRx7 && targetId !== rx7Def.id) {
+            SoundFontStorage.get(rx7Def.id)
+              .then(async (rx7Stored) => {
+                if (rx7Stored && isMounted) {
+                  const rx7Presets = parseSf2Presets(rx7Stored.data);
+                  await audioBridge.loadDrumSoundFont(rx7Stored.data, rx7Stored.filename, true);
+                  rx7SoundfontRef.current = {
+                    id: rx7Stored.id,
+                    filename: rx7Stored.filename,
+                    displayName: rx7Stored.displayName,
+                    description: rx7Stored.description,
+                    category: rx7Stored.category,
+                    fileSizeMb: rx7Stored.fileSizeMb,
+                    presets: rx7Presets,
+                  };
+                }
               })
-              .catch((err) => console.warn('Error descargando RX7 en segundo plano:', err));
+              .catch(() => {});
+          } else if (targetId === rx7Def.id) {
+            SoundFontStorage.get(pianoDef.id)
+              .then(async (pianoStored) => {
+                if (pianoStored && isMounted) {
+                  const pianoPresets = parseSf2Presets(pianoStored.data);
+                  await audioBridge.loadSoundFont(pianoStored.data, pianoStored.filename, true);
+                  lastMelodicSoundfontRef.current = {
+                    id: pianoStored.id,
+                    filename: pianoStored.filename,
+                    displayName: pianoStored.displayName,
+                    description: pianoStored.description,
+                    category: pianoStored.category,
+                    fileSizeMb: pianoStored.fileSizeMb,
+                    presets: pianoPresets,
+                  };
+                }
+              })
+              .catch(() => {});
+          }
+
+          // Iniciar cola silenciosa en segundo plano para descargar cualquier instrumento faltante (RX7, Mellotron, Rhodes)
+          if (isMounted) {
+            startBackgroundPrefetchQueue();
           }
           return;
         }
@@ -787,7 +1012,7 @@ export const App: React.FC = () => {
           );
         }
 
-        // Descarga de Yamaha RX7 (solo 19.3 MB) para tener la percusión lista desde el inicio
+        // Descarga de Yamaha RX7 (solo 19.3 MB) para tener la percusión lista en el drumEngine desde el inicio
         if (isMounted) {
           setBootStatusText('Descargando Batería Yamaha RX7...');
           setBootProgress(0);
@@ -797,6 +1022,7 @@ export const App: React.FC = () => {
           if (isMounted) setBootProgress(pct);
         });
 
+        const rx7Presets = parseSf2Presets(rx7Buf);
         await SoundFontStorage.save({
           id: rx7Def.id,
           filename: rx7Def.filename,
@@ -807,6 +1033,16 @@ export const App: React.FC = () => {
           data: rx7Buf,
           savedAt: Date.now(),
         });
+        await audioBridge.loadDrumSoundFont(rx7Buf, rx7Def.filename, true);
+        rx7SoundfontRef.current = {
+          id: rx7Def.id,
+          filename: rx7Def.filename,
+          displayName: rx7Def.displayName,
+          description: rx7Def.description,
+          category: 'Factory',
+          fileSizeMb: rx7Def.fileSizeMb,
+          presets: rx7Presets,
+        };
 
         localStorage.setItem('impact_has_cached_instruments', '1');
         const finalList = await SoundFontStorage.list();
@@ -816,7 +1052,11 @@ export const App: React.FC = () => {
           setBootProgress(100);
           setBootFadeOut(true);
           setTimeout(() => {
-            if (isMounted) setIsBooting(false);
+            if (isMounted) {
+              setIsBooting(false);
+              // Una vez abierto el sintetizador, pre-descargar silenciosamente Mellotron y Rhodes en segundo plano
+              startBackgroundPrefetchQueue();
+            }
           }, 500);
         }
       } catch (err) {
@@ -828,6 +1068,7 @@ export const App: React.FC = () => {
     bootApp();
     return () => {
       isMounted = false;
+      bgAbortControllerRef.current?.abort();
     };
   }, []);
 
@@ -855,6 +1096,25 @@ export const App: React.FC = () => {
   };
 
   const handleDownloadFactory = async (instrument: FactoryInstrumentDef) => {
+    deletedInSessionRef.current.delete(instrument.id);
+
+    // Si este mismo instrumento ya se está descargando en segundo plano, engancharse a esa descarga sin reiniciarla
+    if (bgDownloadingIdRef.current === instrument.id) {
+      bgAutoActivateIdRef.current = instrument.id;
+      setDownloadingId(instrument.id);
+      setDownloadProgress((prev) => ({
+        ...prev,
+        [instrument.id]: bgDownloadProgressRef.current[instrument.id] || 0,
+      }));
+      return;
+    }
+
+    // Si otro instrumento distinto se estaba pre-descargando en segundo plano, pausarlo para ceder todo el ancho de banda al usuario
+    if (bgAbortControllerRef.current) {
+      bgAbortControllerRef.current.abort();
+      bgAbortControllerRef.current = null;
+    }
+
     try {
       setDownloadingId(instrument.id);
       setDownloadProgress((prev) => ({ ...prev, [instrument.id]: 0 }));
@@ -877,12 +1137,36 @@ export const App: React.FC = () => {
       alert(`No se pudo descargar ${instrument.displayName}. Revisa tu conexión a internet.`);
     } finally {
       setDownloadingId(null);
+      // Reanudar la cola de pre-descarga en segundo plano para los instrumentos restantes
+      startBackgroundPrefetchQueue();
     }
   };
 
   const handleSelectStored = async (id: string) => {
     try {
       setIsLoadingSf2(true);
+      const isRx7 = id.toLowerCase().includes('rx7');
+
+      // Camino rápido (0 ms): si ya está cargado en su respectivo motor WASM, conmutar sin leer IndexedDB
+      if (isRx7 && audioBridge.isDrumLoaded() && rx7SoundfontRef.current) {
+        SoundFontStorage.setLastLoadedId(id);
+        setCurrentSoundfont(rx7SoundfontRef.current);
+        setActivePresetIndex(0);
+        setIsAudioStarted(true);
+        workstationModeRef.current = 'seq';
+        setWorkstationMode('seq');
+        return;
+      }
+      if (!isRx7 && lastMelodicSoundfontRef.current?.id === id && audioBridge.getSoundFontName() === lastMelodicSoundfontRef.current.filename) {
+        SoundFontStorage.setLastLoadedId(id);
+        setCurrentSoundfont(lastMelodicSoundfontRef.current);
+        setActivePresetIndex(0);
+        setIsAudioStarted(true);
+        workstationModeRef.current = 'keys';
+        setWorkstationMode('keys');
+        return;
+      }
+
       const entry = await SoundFontStorage.get(id);
       if (!entry) {
         alert('El instrumento no se encontró en el almacenamiento local.');
@@ -891,7 +1175,11 @@ export const App: React.FC = () => {
 
       const presets = parseSf2Presets(entry.data);
       await audioBridge.initialize();
-      await audioBridge.loadSoundFont(entry.data, entry.filename, true);
+      if (isRx7) {
+        await audioBridge.loadDrumSoundFont(entry.data, entry.filename, true);
+      } else {
+        await audioBridge.loadSoundFont(entry.data, entry.filename, true);
+      }
 
       SoundFontStorage.setLastLoadedId(id);
 
@@ -914,11 +1202,14 @@ export const App: React.FC = () => {
       setActivePresetIndex(0);
       setIsAudioStarted(true);
 
-      if (entry.filename.toLowerCase().includes('rx7')) {
+      if (isRx7) {
+        rx7SoundfontRef.current = sfInfo;
+        workstationModeRef.current = 'seq';
         setWorkstationMode('seq');
       } else {
-        setWorkstationMode('keys');
         lastMelodicSoundfontRef.current = sfInfo;
+        workstationModeRef.current = 'keys';
+        setWorkstationMode('keys');
       }
     } catch (err) {
       console.error('Error cargando SoundFont guardado:', err);
@@ -930,6 +1221,10 @@ export const App: React.FC = () => {
 
   const handleDeleteStored = async (id: string) => {
     try {
+      deletedInSessionRef.current.add(id);
+      if (bgDownloadingIdRef.current === id && bgAbortControllerRef.current) {
+        bgAbortControllerRef.current.abort();
+      }
       await SoundFontStorage.delete(id);
       const list = await SoundFontStorage.list();
       setSavedSoundfonts(list);
@@ -1025,15 +1320,20 @@ export const App: React.FC = () => {
 
     if (newMode === 'seq') {
       setSequencerState((prev) => ({ ...prev, currentStep: latestStepRef.current }));
-      // Si entramos a SEQ y no tenemos RX7 activo, recordar melódico y cargar RX7
       if (!currentSoundfont?.filename.toLowerCase().includes('rx7')) {
         if (currentSoundfont) {
           lastMelodicSoundfontRef.current = currentSoundfont;
         }
+        // Camino instantáneo (0 ms): si RX7 ya está residente en drumEngine, cambiar metadatos sin leer IndexedDB
+        if (audioBridge.isDrumLoaded() && rx7SoundfontRef.current) {
+          setCurrentSoundfont(rx7SoundfontRef.current);
+          setActivePresetIndex(0);
+          return;
+        }
         const rx7Entry = await SoundFontStorage.get('Yamaha_RX7_Drums.sf2');
         if (rx7Entry) {
           const presets = parseSf2Presets(rx7Entry.data);
-          await audioBridge.loadSoundFont(rx7Entry.data, rx7Entry.filename, true);
+          await audioBridge.loadDrumSoundFont(rx7Entry.data, rx7Entry.filename, true);
           const sfInfo: SoundFontInfo = {
             id: rx7Entry.id,
             filename: rx7Entry.filename,
@@ -1043,13 +1343,22 @@ export const App: React.FC = () => {
             fileSizeMb: rx7Entry.fileSizeMb,
             presets,
           };
+          rx7SoundfontRef.current = sfInfo;
           setCurrentSoundfont(sfInfo);
           setActivePresetIndex(0);
         }
       }
     } else if (newMode === 'keys') {
-      // Si volvemos a KEYS y teníamos RX7 activo, restaurar el instrumento melódico previo
       if (currentSoundfont?.filename.toLowerCase().includes('rx7')) {
+        // Camino instantáneo (0 ms): si el instrumento melódico sigue residente en melodicEngine, restaurar sin leer IndexedDB
+        if (
+          lastMelodicSoundfontRef.current &&
+          audioBridge.getSoundFontName() === lastMelodicSoundfontRef.current.filename
+        ) {
+          setCurrentSoundfont(lastMelodicSoundfontRef.current);
+          setActivePresetIndex(0);
+          return;
+        }
         const targetId = lastMelodicSoundfontRef.current?.id || 'Piano - Realtime.sf2';
         const stored = await SoundFontStorage.get(targetId);
         if (stored) {
@@ -1064,6 +1373,7 @@ export const App: React.FC = () => {
             fileSizeMb: stored.fileSizeMb,
             presets,
           };
+          lastMelodicSoundfontRef.current = sfInfo;
           setCurrentSoundfont(sfInfo);
           setActivePresetIndex(0);
         }
@@ -1080,12 +1390,14 @@ export const App: React.FC = () => {
       audioBridge.resumeAudio();
       setIsAudioStarted(true);
     }
-    audioBridge.noteOn(note, velocity);
+    const target = currentSoundfont.filename.toLowerCase().includes('rx7') ? 'drum' : 'melodic';
+    audioBridge.noteOn(note, velocity, 0, target);
     setVisualKeyActive(note, true);
   };
 
   const handleReleaseNote = (note: number) => {
-    audioBridge.noteOff(note);
+    const target = currentSoundfont?.filename.toLowerCase().includes('rx7') ? 'drum' : 'melodic';
+    audioBridge.noteOff(note, 0, target);
     setVisualKeyActive(note, false);
   };
 
@@ -1106,12 +1418,14 @@ export const App: React.FC = () => {
       audioBridge.syncArpState(arpState, bpm);
       setIsAudioStarted(true);
     }
-    audioBridge.noteOn(note, velocity);
+    const target = currentSoundfont.filename.toLowerCase().includes('rx7') ? 'drum' : 'melodic';
+    audioBridge.noteOn(note, velocity, 0, target);
     setVisualKeyActive(note, true);
   };
 
   const handleQwertyNoteOff = (note: number) => {
-    audioBridge.noteOff(note);
+    const target = currentSoundfont?.filename.toLowerCase().includes('rx7') ? 'drum' : 'melodic';
+    audioBridge.noteOff(note, 0, target);
     setVisualKeyActive(note, false);
   };
 
@@ -1124,14 +1438,11 @@ export const App: React.FC = () => {
   });
 
   const handleChangeFader = (index: number, value: number) => {
-    setFaders((prev) => {
-      const next = [...prev];
-      next[index] = value;
-      return next;
-    });
     if (index === 8) {
       audioBridge.setMasterFader(value);
     }
+    pendingFadersRef.current[index] = value;
+    scheduleUiFlush();
   };
 
   const handleHeaderMasterGainChange = (gain: number) => {
@@ -1140,22 +1451,21 @@ export const App: React.FC = () => {
   };
 
   const handleChangeKnob = (index: number, value: number) => {
-    setKnobs((prev) => {
-      const next = [...prev];
-      next[index] = value;
-      return next;
-    });
     audioBridge.setKnob(index, value);
+    pendingKnobsRef.current[index] = value;
+    scheduleUiFlush();
   };
 
   const handleChangePitchBend = (bend: number) => {
-    setPitchBend(bend);
     audioBridge.setPitchBend(bend);
+    pendingPitchBendRef.current = bend;
+    scheduleUiFlush();
   };
 
   const handleChangeModWheel = (val: number) => {
-    setModWheel(val);
     audioBridge.setModWheel(val);
+    pendingModWheelRef.current = val;
+    scheduleUiFlush();
   };
 
   const handleChangeFxRouting = (routing: FxRouting) => {
@@ -1237,8 +1547,12 @@ export const App: React.FC = () => {
         return next;
       });
     }, 120);
-    handleTriggerNote(note, 127);
-    setTimeout(() => handleReleaseNote(note), 120);
+    if (!isAudioStarted) {
+      audioBridge.resumeAudio();
+      setIsAudioStarted(true);
+    }
+    audioBridge.noteOn(note, 127, 0, 'drum');
+    setTimeout(() => audioBridge.noteOff(note, 0, 'drum'), 120);
   };
 
   const tapTimesRef = useRef<number[]>([]);
@@ -1352,8 +1666,6 @@ export const App: React.FC = () => {
       <Header
         onOpenInstrumentSelect={() => setIsInstrumentModalOpen(true)}
         currentSoundfont={currentSoundfont}
-        midiEvents={midiEvents}
-        onClearMidiEvents={() => setMidiEvents([])}
         midiDevices={midiDevices}
         isAudioStarted={isAudioStarted}
         audioSampleRate={audioBridge.getAudioContext()?.sampleRate || 48000}
@@ -1417,7 +1729,7 @@ export const App: React.FC = () => {
       )}
 
       {/* Contenido Principal: Consola Flotante Centrada Ergonómicamente */}
-      <main className="flex-1 p-2 sm:py-3 sm:px-4 flex flex-col justify-center items-center relative z-10 my-auto">
+      <main className="flex-1 p-1 sm:p-1.5 lg:py-3 lg:px-4 flex flex-col justify-center items-center relative z-10 my-auto safe-horizontal">
         <div className="studio-console flex flex-col w-full max-w-6xl my-auto transition-all duration-200">
           <HardwareSkeleton
             faders={faders}

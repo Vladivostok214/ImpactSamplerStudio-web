@@ -20,7 +20,9 @@ export class WebMidiManager {
   private onPitchBendListeners: PitchBendCallback[] = [];
   private onTransportListeners: TransportCallback[] = [];
   private onNormalizedMidiEventListeners: NormalizedMidiEventCallback[] = [];
+  private recentEvents: NormalizedMidiEvent[] = [];
   public shouldInterceptNote: ((note: number, velocity: number) => boolean) | null = null;
+  public resolveNoteTarget: ((note: number, channel: number) => 'melodic' | 'drum') | null = null;
 
   private constructor() {}
 
@@ -78,10 +80,11 @@ export class WebMidiManager {
       const note = data1;
       const velocity = data2;
       const intercepted = this.shouldInterceptNote ? this.shouldInterceptNote(note, velocity) : false;
+      const target = this.resolveNoteTarget ? this.resolveNoteTarget(note, channel) : (channel === 9 ? 'drum' : 'melodic');
       const isNoteOn = velocity > 0;
       if (isNoteOn) {
         if (!intercepted) {
-          audioBridge.noteOn(note, velocity, channel);
+          audioBridge.noteOn(note, velocity, channel, target);
         }
         this.notifyNoteEvent(note, velocity, true);
         this.notifyNormalizedMidiEvent({
@@ -93,7 +96,7 @@ export class WebMidiManager {
       } else {
         // Velocity 0 es tratado como Note Off en protocolo MIDI
         if (!intercepted) {
-          audioBridge.noteOff(note, channel);
+          audioBridge.noteOff(note, channel, target);
         }
         this.notifyNoteEvent(note, 0, false);
         this.notifyNormalizedMidiEvent({
@@ -108,8 +111,9 @@ export class WebMidiManager {
     else if (command === 0x08) {
       const note = data1;
       const intercepted = this.shouldInterceptNote ? this.shouldInterceptNote(note, 0) : false;
+      const target = this.resolveNoteTarget ? this.resolveNoteTarget(note, channel) : (channel === 9 ? 'drum' : 'melodic');
       if (!intercepted) {
-        audioBridge.noteOff(note, channel);
+        audioBridge.noteOff(note, channel, target);
       }
       this.notifyNoteEvent(note, 0, false);
       this.notifyNormalizedMidiEvent({
@@ -157,7 +161,21 @@ export class WebMidiManager {
   }
 
   private notifyNormalizedMidiEvent(event: NormalizedMidiEvent): void {
-    this.onNormalizedMidiEventListeners.forEach((cb) => cb(event));
+    this.recentEvents.unshift(event);
+    if (this.recentEvents.length > 25) {
+      this.recentEvents.length = 25;
+    }
+    if (this.onNormalizedMidiEventListeners.length > 0) {
+      this.onNormalizedMidiEventListeners.forEach((cb) => cb(event));
+    }
+  }
+
+  public getRecentEvents(): NormalizedMidiEvent[] {
+    return [...this.recentEvents];
+  }
+
+  public clearRecentEvents(): void {
+    this.recentEvents = [];
   }
 
   private notifyNoteEvent(note: number, velocity: number, isNoteOn: boolean): void {

@@ -9,6 +9,7 @@ export class WebAudioBridge {
   private isInitialized = false;
   private initializationPromise: Promise<void> | null = null;
   private currentSoundFontName: string = 'Ninguno';
+  private drumEngineLoaded = false;
   private hasLoggedProcessError = false;
 
   // Cache optimista en hilo principal para respuesta sincrónica sin retardo de round-trip
@@ -42,10 +43,21 @@ export class WebAudioBridge {
         const AudioContextClass = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
         this.ctx = new AudioContextClass({ latencyHint: 'interactive' });
 
-        // 1. Pre-compilar el binario WebAssembly en el hilo principal
-        const wasmResponse = await fetch(wasmUrl);
-        const wasmBytes = await wasmResponse.arrayBuffer();
-        const wasmModule = await WebAssembly.compile(wasmBytes);
+        // 1. Pre-compilar el binario WebAssembly en paralelo a la descarga (compileStreaming con fallback)
+        let wasmModule: WebAssembly.Module;
+        if (typeof WebAssembly.compileStreaming === 'function') {
+          try {
+            wasmModule = await WebAssembly.compileStreaming(fetch(wasmUrl));
+          } catch {
+            const wasmResponse = await fetch(wasmUrl);
+            const wasmBytes = await wasmResponse.arrayBuffer();
+            wasmModule = await WebAssembly.compile(wasmBytes);
+          }
+        } else {
+          const wasmResponse = await fetch(wasmUrl);
+          const wasmBytes = await wasmResponse.arrayBuffer();
+          wasmModule = await WebAssembly.compile(wasmBytes);
+        }
 
         // 2. Cargar el módulo AudioWorkletProcessor compilado por Vite
         await this.ctx.audioWorklet.addModule(workletUrl);
@@ -104,16 +116,20 @@ export class WebAudioBridge {
               break;
 
             case 'SOUNDFONT_LOADED': {
+              if (data.target === 'drum' || String(data.name || '').toLowerCase().includes('rx7')) {
+                this.drumEngineLoaded = true;
+              }
+              if (data.target !== 'drum') {
+                this.currentSoundFontName = data.name;
+              }
               const resolver = data.loadId ? this.soundFontLoadResolvers.get(data.loadId) : null;
               if (resolver) {
                 this.soundFontLoadResolvers.delete(data.loadId);
-                this.currentSoundFontName = data.name;
                 resolver.resolve();
               } else if (this.soundFontLoadResolvers.size > 0) {
                 const entry = this.soundFontLoadResolvers.entries().next().value;
                 if (entry) {
                   this.soundFontLoadResolvers.delete(entry[0]);
-                  this.currentSoundFontName = data.name;
                   entry[1].resolve();
                 }
               }
@@ -181,6 +197,7 @@ export class WebAudioBridge {
           loadId,
           buffer,
           name,
+          target: 'melodic',
         },
         transfer ? [buffer] : []
       );
@@ -188,15 +205,42 @@ export class WebAudioBridge {
     });
   }
 
-  public noteOn(key: number, velocity: number = 127, channel: number = 0): void {
-    if (!this.workletNode || !this.currentSoundFontName || this.currentSoundFontName === 'Ninguno') return;
-    this.resumeAudio();
-    this.workletNode.port.postMessage({ type: 'NOTE_ON', key, velocity, channel });
+  public async loadDrumSoundFont(buffer: ArrayBuffer, name: string, transfer: boolean = false): Promise<void> {
+    await this.initialize();
+    if (!this.workletNode) throw new Error('Motor de audio no inicializado');
+
+    const loadId = `drum_${Date.now()}_${Math.random()}`;
+    return new Promise<void>((resolve, reject) => {
+      this.soundFontLoadResolvers.set(loadId, { resolve, reject });
+      this.workletNode!.port.postMessage(
+        {
+          type: 'LOAD_SOUNDFONT',
+          loadId,
+          buffer,
+          name,
+          target: 'drum',
+        },
+        transfer ? [buffer] : []
+      );
+      this.hasLoggedProcessError = false;
+    });
   }
 
-  public noteOff(key: number, channel: number = 0): void {
-    if (!this.workletNode || !this.currentSoundFontName || this.currentSoundFontName === 'Ninguno') return;
-    this.workletNode.port.postMessage({ type: 'NOTE_OFF', key, channel });
+  public isDrumLoaded(): boolean {
+    return this.drumEngineLoaded;
+  }
+
+  public noteOn(key: number, velocity: number = 127, channel: number = 0, target?: 'melodic' | 'drum'): void {
+    if (!this.workletNode) return;
+    if (target !== 'drum' && (!this.currentSoundFontName || this.currentSoundFontName === 'Ninguno') && !this.drumEngineLoaded) return;
+    this.resumeAudio();
+    this.workletNode.port.postMessage({ type: 'NOTE_ON', key, velocity, channel, target });
+  }
+
+  public noteOff(key: number, channel: number = 0, target?: 'melodic' | 'drum'): void {
+    if (!this.workletNode) return;
+    if (target !== 'drum' && (!this.currentSoundFontName || this.currentSoundFontName === 'Ninguno') && !this.drumEngineLoaded) return;
+    this.workletNode.port.postMessage({ type: 'NOTE_OFF', key, channel, target });
   }
 
   public noteOffAll(immediate: boolean = false): void {

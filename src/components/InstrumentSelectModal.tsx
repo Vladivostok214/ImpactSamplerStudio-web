@@ -108,7 +108,7 @@ interface InstrumentSelectModalProps {
   downloadingId: string | null;
 }
 
-export const InstrumentSelectModal: React.FC<InstrumentSelectModalProps> = ({
+export const InstrumentSelectModal: React.FC<InstrumentSelectModalProps> = React.memo(({
   isOpen,
   onClose,
   currentSoundfont,
@@ -226,6 +226,8 @@ export const InstrumentSelectModal: React.FC<InstrumentSelectModalProps> = ({
                       <img
                         src={inst.imgSrc}
                         alt={inst.displayName}
+                        loading="lazy"
+                        decoding="async"
                         className="max-h-full max-w-full object-contain filter drop-shadow-[0_4px_10px_rgba(0,0,0,0.8)] group-hover:scale-105 transition-transform duration-300"
                       />
                       {isSelected && (
@@ -414,4 +416,4 @@ export const InstrumentSelectModal: React.FC<InstrumentSelectModalProps> = ({
       </div>
     </div>
   );
-};
+});

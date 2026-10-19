@@ -11,6 +11,7 @@ import {
 import { NormalizedMidiEvent } from "../types/midi";
 import { MidiDinIcon, MidiStreamPopover } from "./MidiStreamPopover";
 import { SoundFontInfo } from "../types/soundfont";
+import { webMidi } from "../midi/WebMidiManager";
 
 interface HeaderProps {
   onOpenInstrumentSelect: () => void;
@@ -32,8 +33,6 @@ interface HeaderProps {
 export const Header: React.FC<HeaderProps> = React.memo(({
   onOpenInstrumentSelect,
   currentSoundfont,
-  midiEvents = [],
-  onClearMidiEvents,
   midiDevices = [],
   isAudioStarted,
   audioSampleRate = 48000,
@@ -46,7 +45,18 @@ export const Header: React.FC<HeaderProps> = React.memo(({
   onToggleQwerty,
 }) => {
   const [isMidiPopoverOpen, setIsMidiPopoverOpen] = useState(false);
+  const [liveMidiEvents, setLiveMidiEvents] = useState<NormalizedMidiEvent[]>([]);
   const [isVolumeOpen, setIsVolumeOpen] = useState(false);
+
+  // Suscribirse al flujo de eventos MIDI únicamente cuando el popover está abierto (0 re-renders durante interpretación normal)
+  useEffect(() => {
+    if (!isMidiPopoverOpen) return;
+    setLiveMidiEvents(webMidi.getRecentEvents());
+    const unsub = webMidi.onNormalizedMidiEvent(() => {
+      setLiveMidiEvents(webMidi.getRecentEvents());
+    });
+    return unsub;
+  }, [isMidiPopoverOpen]);
 
   const midiTriggerRef = useRef<HTMLButtonElement>(null);
   const volumeTriggerRef = useRef<HTMLButtonElement>(null);
@@ -103,21 +113,21 @@ export const Header: React.FC<HeaderProps> = React.memo(({
   };
 
   return (
-    <header className="h-14 bg-[#08080a]/80 backdrop-blur-md border-b border-white/[0.08] px-4 md:px-6 flex items-center justify-center z-30 shadow-[0_4px_30px_rgba(0,0,0,0.5),inset_0_1px_0_0_rgba(255,255,255,0.06)] w-full transition-all safe-horizontal">
+    <header className="h-9 lg:h-14 bg-[#08080a]/80 backdrop-blur-md border-b border-white/[0.08] px-3 md:px-6 flex items-center justify-center z-30 shadow-[0_4px_30px_rgba(0,0,0,0.5),inset_0_1px_0_0_rgba(255,255,255,0.06)] w-full shrink-0 transition-all safe-horizontal">
       {/* Contenedor con márgenes idénticos a los del chasis del instrumento (max-w-6xl) */}
-      <div className="w-full max-w-6xl flex items-center justify-between gap-3">
+      <div className="w-full max-w-6xl flex items-center justify-between gap-2 lg:gap-3">
         {/* Lado Izquierdo: Brand Logo + Selector de Instrumento + Monitores Hardware Inline */}
-        <div className="flex items-center space-x-2.5 sm:space-x-3.5">
+        <div className="flex items-center space-x-2 sm:space-x-3.5">
           {/* Logo Principal Interactivo (Abre Catálogo de Instrumentos) */}
           <button
             type="button"
             onMouseDown={(e) => e.preventDefault()}
             onClick={onOpenInstrumentSelect}
-            className="text-sm font-black tracking-widest text-white flex items-center select-none hover:opacity-90 transition cursor-pointer group focus:outline-none shrink-0"
+            className="text-xs lg:text-sm font-black tracking-widest text-white flex items-center select-none hover:opacity-90 transition cursor-pointer group focus:outline-none shrink-0"
             style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif' }}
             title={currentSoundfont ? `Instrumento actual: ${currentSoundfont.displayName} (Clic para abrir catálogo)` : "Abrir Catálogo de Instrumentos"}
           >
-            <div className="w-6 h-6 rounded-md overflow-hidden mr-2 border border-emerald-500/40 shadow-[0_0_10px_rgba(16,185,129,0.35)] flex items-center justify-center bg-black/60 shrink-0 group-hover:border-emerald-400 group-hover:shadow-[0_0_14px_rgba(16,185,129,0.6)] transition">
+            <div className="w-5 h-5 lg:w-6 lg:h-6 rounded-md overflow-hidden mr-1.5 lg:mr-2 border border-emerald-500/40 shadow-[0_0_10px_rgba(16,185,129,0.35)] flex items-center justify-center bg-black/60 shrink-0 group-hover:border-emerald-400 group-hover:shadow-[0_0_14px_rgba(16,185,129,0.6)] transition">
               <img src="/app-icon.png" alt="Impact Sampler" className="w-full h-full object-contain" />
             </div>
             <h1>
@@ -170,28 +180,31 @@ export const Header: React.FC<HeaderProps> = React.memo(({
         </div>
 
         {/* Lado Derecho: Live MIDI DIN Popover + QWERTY + MIDI Learn + Master Volume */}
-        <div className="flex items-center space-x-2">
+        <div className="flex items-center space-x-1.5 lg:space-x-2">
           {/* Live MIDI Stream Popover Trigger (Icono DIN-5) */}
           <div className="relative">
             <button
               ref={midiTriggerRef}
               type="button"
               onClick={() => setIsMidiPopoverOpen((prev) => !prev)}
-              className={`p-1.5 sm:p-2 rounded-xl border transition flex items-center justify-center shadow-sm cursor-pointer ${
+              className={`p-1 lg:p-2 rounded-lg lg:rounded-xl border transition flex items-center justify-center shadow-sm cursor-pointer ${
                 isMidiPopoverOpen
                   ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/50 shadow-[0_0_12px_rgba(16,185,129,0.3)]"
                   : "bg-white/[0.04] hover:bg-white/[0.08] text-zinc-300 hover:text-white border-white/[0.08]"
               }`}
               title="Monitor de Eventos MIDI en Vivo (DIN-5)"
             >
-              <MidiDinIcon size={16} />
+              <MidiDinIcon size={15} />
             </button>
             <MidiStreamPopover
               isOpen={isMidiPopoverOpen}
               onClose={() => setIsMidiPopoverOpen(false)}
               triggerRef={midiTriggerRef}
-              events={midiEvents}
-              onClear={onClearMidiEvents}
+              events={liveMidiEvents}
+              onClear={() => {
+                webMidi.clearRecentEvents();
+                setLiveMidiEvents([]);
+              }}
             />
           </div>
 
@@ -200,15 +213,15 @@ export const Header: React.FC<HeaderProps> = React.memo(({
             type="button"
             onMouseDown={(e) => e.preventDefault()}
             onClick={onToggleQwerty}
-            className={`px-2.5 py-1.5 rounded-xl border transition flex items-center gap-1.5 cursor-pointer text-xs font-mono select-none ${
+            className={`px-2 py-1 lg:px-2.5 lg:py-1.5 rounded-lg lg:rounded-xl border transition flex items-center gap-1.5 cursor-pointer text-xs font-mono select-none ${
               qwertyEnabled
                 ? "bg-amber-500/20 text-amber-300 border-amber-400 shadow-[0_0_15px_rgba(245,158,11,0.35)] font-bold"
                 : "bg-white/[0.04] hover:bg-white/[0.08] text-zinc-300 hover:text-white border-white/[0.08]"
             }`}
             title="Activar / Desactivar tocar con teclado QWERTY de la PC"
           >
-            <Keyboard size={14} className="shrink-0" />
-            <span className="text-[11px] font-mono tracking-wider font-semibold hidden sm:inline">
+            <Keyboard size={13} className="shrink-0" />
+            <span className="text-[10px] lg:text-[11px] font-mono tracking-wider font-semibold hidden sm:inline">
               QWERTY
             </span>
             <span
@@ -225,15 +238,15 @@ export const Header: React.FC<HeaderProps> = React.memo(({
             type="button"
             onMouseDown={(e) => e.preventDefault()}
             onClick={onToggleMidiLearn}
-            className={`px-2.5 py-1.5 rounded-xl border transition flex items-center gap-1.5 cursor-pointer text-xs font-mono select-none ${
+            className={`px-2 py-1 lg:px-2.5 lg:py-1.5 rounded-lg lg:rounded-xl border transition flex items-center gap-1.5 cursor-pointer text-xs font-mono select-none ${
               isMidiLearnActive
                 ? "bg-amber-500/20 text-amber-300 border-amber-400 shadow-[0_0_15px_rgba(245,158,11,0.5)] font-bold animate-pulse"
                 : "bg-white/[0.04] hover:bg-white/[0.08] text-zinc-300 hover:text-white border-white/[0.08]"
             }`}
             title={isMidiLearnActive ? "Desactivar MIDI Learn" : "Activar MIDI Learn"}
           >
-            <Sliders size={14} className="shrink-0" />
-            <span className="text-[11px] font-mono tracking-wider font-semibold hidden md:inline">
+            <Sliders size={13} className="shrink-0" />
+            <span className="text-[10px] lg:text-[11px] font-mono tracking-wider font-semibold hidden md:inline">
               MIDI LEARN
             </span>
             <span
@@ -249,7 +262,7 @@ export const Header: React.FC<HeaderProps> = React.memo(({
               ref={volumeTriggerRef}
               type="button"
               onClick={() => setIsVolumeOpen((prev) => !prev)}
-              className={`px-2.5 py-1.5 rounded-xl border transition flex items-center gap-1.5 cursor-pointer text-xs font-mono select-none ${
+              className={`px-2 py-1 lg:px-2.5 lg:py-1.5 rounded-lg lg:rounded-xl border transition flex items-center gap-1.5 cursor-pointer text-xs font-mono select-none ${
                 isVolumeOpen
                   ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/50 shadow-[0_0_12px_rgba(16,185,129,0.3)] font-semibold"
                   : "bg-white/[0.04] hover:bg-white/[0.08] text-zinc-300 hover:text-white border-white/[0.08]"
