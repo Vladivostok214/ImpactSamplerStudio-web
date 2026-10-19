@@ -1,3 +1,4 @@
+import './workletPolyfills';
 import { initSync, WasmEngine } from '../../wasm/impact_wasm';
 
 declare class AudioWorkletProcessor {
@@ -75,9 +76,9 @@ class ImpactAudioProcessor extends AudioWorkletProcessor {
           const bytes = new Uint8Array(data.buffer);
           this.engine.load_soundfont(bytes);
           this.soundFontLoaded = true;
-          this.port.postMessage({ type: 'SOUNDFONT_LOADED', name: data.name });
+          this.port.postMessage({ type: 'SOUNDFONT_LOADED', loadId: data.loadId, name: data.name });
         } catch (err: any) {
-          this.port.postMessage({ type: 'SOUNDFONT_ERROR', error: err?.message || String(err) });
+          this.port.postMessage({ type: 'SOUNDFONT_ERROR', loadId: data.loadId, error: err?.message || String(err) });
         }
         break;
 

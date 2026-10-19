@@ -17,7 +17,7 @@ export class WebAudioBridge {
   private cachedBank: 'a' | 'b' = 'a';
   private cachedPattern: number[][] = Array.from({ length: 8 }, () => new Array(32).fill(0));
   private stepListeners: Set<(step: number) => void> = new Set();
-  private soundFontLoadResolver: { resolve: () => void; reject: (err: Error) => void } | null = null;
+  private soundFontLoadResolvers: Map<string, { resolve: () => void; reject: (err: Error) => void }> = new Map();
 
   private constructor() {}
 
@@ -97,20 +97,37 @@ export class WebAudioBridge {
               }
               break;
 
-            case 'SOUNDFONT_LOADED':
-              if (this.soundFontLoadResolver) {
+            case 'SOUNDFONT_LOADED': {
+              const resolver = data.loadId ? this.soundFontLoadResolvers.get(data.loadId) : null;
+              if (resolver) {
+                this.soundFontLoadResolvers.delete(data.loadId);
                 this.currentSoundFontName = data.name;
-                this.soundFontLoadResolver.resolve();
-                this.soundFontLoadResolver = null;
+                resolver.resolve();
+              } else if (this.soundFontLoadResolvers.size > 0) {
+                const entry = this.soundFontLoadResolvers.entries().next().value;
+                if (entry) {
+                  this.soundFontLoadResolvers.delete(entry[0]);
+                  this.currentSoundFontName = data.name;
+                  entry[1].resolve();
+                }
               }
               break;
+            }
 
-            case 'SOUNDFONT_ERROR':
-              if (this.soundFontLoadResolver) {
-                this.soundFontLoadResolver.reject(new Error(data.error));
-                this.soundFontLoadResolver = null;
+            case 'SOUNDFONT_ERROR': {
+              const resolver = data.loadId ? this.soundFontLoadResolvers.get(data.loadId) : null;
+              if (resolver) {
+                this.soundFontLoadResolvers.delete(data.loadId);
+                resolver.reject(new Error(data.error));
+              } else if (this.soundFontLoadResolvers.size > 0) {
+                const entry = this.soundFontLoadResolvers.entries().next().value;
+                if (entry) {
+                  this.soundFontLoadResolvers.delete(entry[0]);
+                  entry[1].reject(new Error(data.error));
+                }
               }
               break;
+            }
 
             case 'WASM_ERROR':
               if (!this.hasLoggedProcessError) {
@@ -144,11 +161,13 @@ export class WebAudioBridge {
     await this.initialize();
     if (!this.workletNode) throw new Error('Motor de audio no inicializado');
 
+    const loadId = `${Date.now()}_${Math.random()}`;
     return new Promise<void>((resolve, reject) => {
-      this.soundFontLoadResolver = { resolve, reject };
+      this.soundFontLoadResolvers.set(loadId, { resolve, reject });
       // Enviar el buffer al AudioWorklet (sin transferirlo para preservar almacenamiento IndexedDB)
       this.workletNode!.port.postMessage({
         type: 'LOAD_SOUNDFONT',
+        loadId,
         buffer,
         name,
       });
