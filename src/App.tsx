@@ -7,7 +7,7 @@ import { SoundFontInfo } from './types/soundfont';
 import { FxRouting, SequencerStateInfo, StepResolution } from './types/sampler';
 import { ArpStateInfo } from './types/arpeggiator';
 import { useQwertyKeyboard, MIN_OCTAVE_OFFSET, MAX_OCTAVE_OFFSET } from './hooks/useQwertyKeyboard';
-import { InstrumentSelectModal, FactoryInstrumentDef } from './components/InstrumentSelectModal';
+import { InstrumentSelectModal, FactoryInstrumentDef, FACTORY_INSTRUMENTS } from './components/InstrumentSelectModal';
 import { SoundFontStorage } from './storage/SoundFontStorage';
 import { OrientationGuard } from './components/OrientationGuard';
 import { setVisualKeyActive, clearAllVisualKeys } from './utils/visualKeys';
@@ -72,6 +72,12 @@ export const App: React.FC = () => {
   const [savedSoundfonts, setSavedSoundfonts] = useState<{ id: string; displayName: string; fileSizeMb: number }[]>([]);
   const [downloadProgress, setDownloadProgress] = useState<{ [id: string]: number }>({});
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
+
+  // Splash Inicial Noir y Auto-carga de Grand Piano
+  const [isBooting, setIsBooting] = useState<boolean>(true);
+  const [bootFadeOut, setBootFadeOut] = useState<boolean>(false);
+  const [bootStatusText, setBootStatusText] = useState<string>('Iniciando motor de audio...');
+  const [bootProgress, setBootProgress] = useState<number | null>(null);
 
   const handleTogglePlay = async () => {
     if (!isAudioStarted) {
@@ -262,51 +268,6 @@ export const App: React.FC = () => {
     }
   };
 
-  // Inicialización de Almacenamiento Local IndexedDB y Auto-carga (Bloque 5)
-  useEffect(() => {
-    let isMounted = true;
-    const initSoundFontStorage = async () => {
-      try {
-        const list = await SoundFontStorage.list();
-        if (!isMounted) return;
-        setSavedSoundfonts(list);
-
-        const lastId = SoundFontStorage.getLastLoadedId();
-        if (lastId) {
-          const entry = await SoundFontStorage.get(lastId);
-          if (entry && isMounted) {
-            setIsLoadingSf2(true);
-            await audioBridge.initialize();
-            await audioBridge.loadSoundFont(entry.data, entry.filename);
-
-            const presets = parseSf2Presets(entry.data);
-            const sfInfo: SoundFontInfo = {
-              id: entry.id,
-              filename: entry.filename,
-              displayName: entry.displayName,
-              description: entry.description,
-              category: entry.category,
-              fileSizeMb: entry.fileSizeMb,
-              presets,
-            };
-            if (isMounted) {
-              setCurrentSoundfont(sfInfo);
-            }
-          }
-        }
-      } catch (err) {
-        console.warn('Error inicializando almacenamiento local de SoundFonts:', err);
-      } finally {
-        if (isMounted) setIsLoadingSf2(false);
-      }
-    };
-
-    initSoundFontStorage();
-    return () => {
-      isMounted = false;
-    };
-  }, []);
-
   const finishLoadingSoundFont = async (
     id: string,
     filename: string,
@@ -364,6 +325,147 @@ export const App: React.FC = () => {
       setIsLoadingSf2(false);
     }
   };
+
+  // Inicialización de Almacenamiento Local IndexedDB, Auto-carga de Grand Piano y Splash Screen
+  useEffect(() => {
+    let isMounted = true;
+    const bootApp = async () => {
+      const minTimerPromise = new Promise((resolve) => setTimeout(resolve, 2500));
+      try {
+        const list = await SoundFontStorage.list();
+        if (isMounted) setSavedSoundfonts(list);
+
+        const lastId = SoundFontStorage.getLastLoadedId();
+        let loaded = false;
+
+        // 1. Si el usuario ya tenía un instrumento cargado previamente, restaurarlo
+        if (lastId) {
+          const entry = await SoundFontStorage.get(lastId);
+          if (entry && isMounted) {
+            setBootStatusText(`Cargando ${entry.displayName}...`);
+            await audioBridge.initialize();
+            await audioBridge.loadSoundFont(entry.data, entry.filename);
+
+            const presets = parseSf2Presets(entry.data);
+            const sfInfo: SoundFontInfo = {
+              id: entry.id,
+              filename: entry.filename,
+              displayName: entry.displayName,
+              description: entry.description,
+              category: entry.category,
+              fileSizeMb: entry.fileSizeMb,
+              presets,
+            };
+            if (isMounted) {
+              setCurrentSoundfont(sfInfo);
+              loaded = true;
+            }
+          }
+        }
+
+        // 2. Si no hay instrumento previo, auto-cargar Grand Piano por defecto
+        if (!loaded && isMounted) {
+          const pianoDef = FACTORY_INSTRUMENTS.find((f) => f.id === 'Piano - Realtime.sf2') || FACTORY_INSTRUMENTS[1];
+          const storedPiano = await SoundFontStorage.get(pianoDef.id);
+
+          if (storedPiano && isMounted) {
+            setBootStatusText('Cargando Grand Piano...');
+            await audioBridge.initialize();
+            await audioBridge.loadSoundFont(storedPiano.data, storedPiano.filename);
+            SoundFontStorage.setLastLoadedId(storedPiano.id);
+
+            const presets = parseSf2Presets(storedPiano.data);
+            const sfInfo: SoundFontInfo = {
+              id: storedPiano.id,
+              filename: storedPiano.filename,
+              displayName: storedPiano.displayName,
+              description: storedPiano.description,
+              category: storedPiano.category,
+              fileSizeMb: storedPiano.fileSizeMb,
+              presets,
+            };
+            if (isMounted) {
+              setCurrentSoundfont(sfInfo);
+              loaded = true;
+            }
+          } else if (isMounted) {
+            // Descarga inicial de Grand Piano
+            setBootStatusText('Descargando Grand Piano...');
+            setBootProgress(0);
+
+            const proxyUrl = `/api/download?url=${encodeURIComponent(pianoDef.downloadUrl)}`;
+            let response: Response;
+            try {
+              response = await fetch(proxyUrl);
+              if (!response.ok) throw new Error(`Proxy status: ${response.status}`);
+            } catch {
+              response = await fetch(pianoDef.downloadUrl);
+            }
+
+            if (response.ok) {
+              const contentLength = response.headers.get('content-length');
+              const totalBytes = contentLength ? parseInt(contentLength, 10) : pianoDef.fileSizeMb * 1024 * 1024;
+              const reader = response.body?.getReader();
+
+              let buffer: ArrayBuffer;
+              if (!reader) {
+                buffer = await response.arrayBuffer();
+              } else {
+                let receivedBytes = 0;
+                const chunks: Uint8Array[] = [];
+                while (true) {
+                  const { done, value } = await reader.read();
+                  if (done) break;
+                  if (value) {
+                    chunks.push(value);
+                    receivedBytes += value.length;
+                    const pct = Math.min(99, Math.round((receivedBytes / totalBytes) * 100));
+                    if (isMounted) setBootProgress(pct);
+                  }
+                }
+                const full = new Uint8Array(receivedBytes);
+                let off = 0;
+                for (const ch of chunks) {
+                  full.set(ch, off);
+                  off += ch.length;
+                }
+                buffer = full.buffer;
+              }
+
+              if (isMounted) {
+                setBootStatusText('Iniciando Grand Piano...');
+                setBootProgress(100);
+                await finishLoadingSoundFont(
+                  pianoDef.id,
+                  pianoDef.filename,
+                  pianoDef.displayName,
+                  pianoDef.description,
+                  'Factory',
+                  pianoDef.fileSizeMb,
+                  buffer
+                );
+              }
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('Error inicializando inicio de app:', err);
+      } finally {
+        await minTimerPromise;
+        if (isMounted) {
+          setBootFadeOut(true);
+          setTimeout(() => {
+            if (isMounted) setIsBooting(false);
+          }, 700);
+        }
+      }
+    };
+
+    bootApp();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const loadSoundFontFile = async (file: File) => {
     if (!file.name.toLowerCase().endsWith('.sf2')) {
@@ -1057,6 +1159,39 @@ export const App: React.FC = () => {
         downloadProgress={downloadProgress}
         downloadingId={downloadingId}
       />
+
+      {/* Splash Inicial Noir con Revelado Cinematográfico */}
+      {isBooting && (
+        <div
+          className={`fixed inset-0 z-[100] bg-black flex flex-col items-center justify-center select-none transition-all duration-700 ease-out ${
+            bootFadeOut
+              ? 'opacity-0 pointer-events-none scale-110 blur-sm'
+              : 'opacity-100 scale-100 blur-0'
+          }`}
+          style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif' }}
+        >
+          <h1 className="text-3xl sm:text-4xl md:text-5xl font-black tracking-widest text-white flex items-center drop-shadow-[0_0_35px_rgba(255,255,255,0.18)]">
+            IMPACT<span className="text-emerald-400 drop-shadow-[0_0_24px_rgba(16,185,129,0.75)]">SAMPLER</span>
+          </h1>
+
+          <p className="mt-4 text-xs font-mono text-zinc-400 tracking-wider flex items-center gap-2">
+            <Loader2 className="w-3.5 h-3.5 text-emerald-400 animate-spin" />
+            <span>{bootStatusText}</span>
+          </p>
+
+          {bootProgress !== null && (
+            <div className="w-56 sm:w-72 flex flex-col items-center mt-3">
+              <div className="w-full h-1 bg-zinc-900 rounded-full overflow-hidden border border-white/10">
+                <div
+                  className="h-full bg-emerald-400 shadow-[0_0_8px_#10b981] transition-all duration-150"
+                  style={{ width: `${bootProgress}%` }}
+                />
+              </div>
+              <span className="text-[10px] font-mono text-zinc-500 mt-1">{bootProgress}%</span>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Guardia de Orientación Móvil (Rotate Device Overlay) */}
       <OrientationGuard />
