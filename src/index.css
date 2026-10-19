@@ -74,8 +74,12 @@ html, body, #root {
 }
 
 /* =========================================================================
-   ILUMINACIÓN DIRECTA DE TECLAS (CERO RE-RENDERS EN REACT / LATENCIA ULTRA BAJA)
+   AISLAMIENTO DE REPAINT EN GPU Y CERO LATENCIA VISUAL EN TECLAS / SECUENCIADOR
    ========================================================================= */
+
+.gpu-contain {
+  contain: layout style paint;
+}
 
 .piano-key-black {
   background: linear-gradient(to bottom, #18191c, #121316, #08080a);
@@ -83,19 +87,13 @@ html, body, #root {
   border-right: 1px solid #060608;
   border-bottom: 4px solid #020203;
   cursor: pointer;
-  transition: all 75ms ease;
-}
-
-.piano-key-black:hover:not(.piano-key-out-of-range) {
-  background-color: #1f2026;
 }
 
 .piano-key-black.piano-key-active {
-  background: linear-gradient(to bottom, #22d3ee, #06b6d4, #0891b2) !important;
-  border-left-color: #22d3ee !important;
-  border-right-color: #22d3ee !important;
+  background: #06b6d4 !important;
+  border-left-color: #67e8f9 !important;
+  border-right-color: #67e8f9 !important;
   border-bottom-color: #0e7490 !important;
-  box-shadow: 0 0 20px rgba(6, 182, 212, 0.95) !important;
 }
 
 .piano-key-black.piano-key-active .piano-key-label {
@@ -107,18 +105,12 @@ html, body, #root {
   background: linear-gradient(to bottom, #eef1f5, #fafbfc, #dce2ea);
   border-right: 1px solid rgba(0, 0, 0, 0.3);
   cursor: pointer;
-  transition: all 75ms ease;
-}
-
-.piano-key-white:hover:not(.piano-key-out-of-range) {
-  filter: brightness(1.05);
 }
 
 .piano-key-white.piano-key-active {
-  background: linear-gradient(to bottom, #67e8f9, #22d3ee, #06b6d4) !important;
+  background: #22d3ee !important;
   color: black !important;
-  border-right-color: #67e8f9 !important;
-  box-shadow: 0 0 18px rgba(6, 182, 212, 0.9) !important;
+  border-right-color: #0891b2 !important;
 }
 
 .piano-key-white.piano-key-active .piano-key-label {
@@ -137,31 +129,51 @@ html, body, #root {
 
 .seq-step-btn[data-playhead="true"][data-active="false"] {
   background: #282d38 !important;
-  border-color: rgba(52, 211, 153, 0.85) !important;
-  box-shadow: 0 0 8px rgba(16, 185, 129, 0.35) !important;
+  border-color: #34d399 !important;
 }
 
 .seq-step-btn[data-playhead="true"][data-active="false"] .seq-step-led {
   background-color: #34d399 !important;
-  box-shadow: 0 0 6px #10b981 !important;
 }
 
 .seq-step-btn[data-playhead="true"][data-active="true"] {
   background: #fcd34d !important;
   color: #000000 !important;
   border-color: #ffffff !important;
-  box-shadow: 0 0 12px #ffffff !important;
   z-index: 10;
 }
 
 .seq-step-btn[data-playhead="true"][data-active="true"] .seq-step-led {
   background-color: #ffffff !important;
-  box-shadow: 0 0 8px #ffffff !important;
 }
 
 .seq-pad-btn[data-pad-hit="true"] {
-  filter: brightness(1.65) !important;
+  background: #34d399 !important;
+  color: #000000 !important;
   border-color: #ffffff !important;
-  box-shadow: 0 0 14px rgba(255, 255, 255, 0.65) !important;
-  transform: scale(0.98);
 }
+
+/* Glows Gaussianos adicionales únicamente en GPU de Escritorio */
+@media (min-width: 1024px) {
+  .piano-key-black:hover:not(.piano-key-out-of-range) {
+    background-color: #1f2026;
+  }
+  .piano-key-black.piano-key-active {
+    background: linear-gradient(to bottom, #22d3ee, #06b6d4, #0891b2) !important;
+    box-shadow: 0 0 20px rgba(6, 182, 212, 0.95) !important;
+  }
+  .piano-key-white.piano-key-active {
+    background: linear-gradient(to bottom, #67e8f9, #22d3ee, #06b6d4) !important;
+    box-shadow: 0 0 18px rgba(6, 182, 212, 0.9) !important;
+  }
+  .seq-step-btn[data-playhead="true"][data-active="false"] {
+    box-shadow: 0 0 8px rgba(16, 185, 129, 0.35) !important;
+  }
+  .seq-step-btn[data-playhead="true"][data-active="true"] {
+    box-shadow: 0 0 12px #ffffff !important;
+  }
+  .seq-pad-btn[data-pad-hit="true"] {
+    box-shadow: 0 0 14px rgba(52, 211, 153, 0.75) !important;
+  }
+}
+

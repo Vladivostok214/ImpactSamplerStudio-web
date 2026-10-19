@@ -565,16 +565,17 @@ export const HardwareSkeleton: React.FC<HardwareSkeletonProps> = React.memo(({
         </div>
       </div>
 
-      {/* 2. Deck Inferior: Teclado de 49 Teclas (Con soporte Pointer Events / Touch Glissando) */}
+      {/* 2. Deck Inferior: Teclado de 49 Teclas (Con soporte Pointer Events / Touch Glissando y 0ms GPU repaint) */}
       {!hideKeyboard && (
-        <div className="bg-[#050507] flex flex-col relative">
-          <div className="h-1 w-full bg-gradient-to-b from-black to-[#09090c] border-b border-black/90 shadow-[inset_0_2px_4px_rgba(0,0,0,0.95)] shrink-0 z-20" />
+        <div className="bg-[#050507] flex flex-col relative gpu-contain">
+          <div className="h-1 w-full bg-gradient-to-b from-black to-[#09090c] border-b border-black/90 shrink-0 z-20" />
           <div className="flex w-full items-stretch relative">
             <div className="w-1.5 sm:w-3 bg-gradient-to-r from-[#0c0d10] to-[#060608] border-r border-black/90 shrink-0 z-30" />
             <div
-              className="relative flex-1 h-24 sm:h-28 lg:h-44 flex overflow-x-auto overflow-y-hidden select-none touch-none bg-black"
+              className="relative flex-1 h-24 sm:h-28 lg:h-44 flex overflow-hidden select-none touch-none bg-black"
               onPointerLeave={() => {
                 document.querySelectorAll<HTMLElement>('.piano-key-active').forEach((el) => {
+                  el.classList.remove('piano-key-active');
                   const note = Number(el.getAttribute('data-piano-note'));
                   if (!isNaN(note)) onReleaseNote(note);
                 });
@@ -594,6 +595,7 @@ export const HardwareSkeleton: React.FC<HardwareSkeletonProps> = React.memo(({
                       onPointerDown={(e) => {
                         if (k.isOutOfRange) return;
                         e.stopPropagation();
+                        e.currentTarget.classList.add("piano-key-active");
                         try {
                           e.currentTarget.releasePointerCapture(e.pointerId);
                         } catch {}
@@ -602,22 +604,30 @@ export const HardwareSkeleton: React.FC<HardwareSkeletonProps> = React.memo(({
                       onPointerUp={(e) => {
                         if (k.isOutOfRange) return;
                         e.stopPropagation();
+                        e.currentTarget.classList.remove("piano-key-active");
                         onReleaseNote(k.note);
                       }}
                       onPointerCancel={(e) => {
                         if (k.isOutOfRange) return;
                         e.stopPropagation();
+                        e.currentTarget.classList.remove("piano-key-active");
                         onReleaseNote(k.note);
                       }}
                       onPointerEnter={(e) => {
                         if (k.isOutOfRange) return;
-                        if (e.buttons === 1 || e.pressure > 0) onTriggerNote(k.note, 110);
+                        if (e.buttons === 1 || e.pressure > 0) {
+                          e.currentTarget.classList.add("piano-key-active");
+                          onTriggerNote(k.note, 110);
+                        }
                       }}
                       onPointerLeave={(e) => {
                         if (k.isOutOfRange) return;
-                        if (e.buttons === 1 || e.pressure > 0) onReleaseNote(k.note);
+                        if (e.buttons === 1 || e.pressure > 0) {
+                          e.currentTarget.classList.remove("piano-key-active");
+                          onReleaseNote(k.note);
+                        }
                       }}
-                      className={`w-[14px] sm:w-[16px] lg:w-[22px] h-[56px] sm:h-[66px] lg:h-[106px] -mx-[7px] sm:-mx-[8px] lg:-mx-[11px] z-20 rounded-b-[2px] relative piano-key-black ${
+                      className={`w-[13px] sm:w-[16px] lg:w-[22px] h-[56px] sm:h-[66px] lg:h-[106px] -mx-[6.5px] sm:-mx-[8px] lg:-mx-[11px] z-20 rounded-b-[2px] relative touch-none piano-key-black ${
                         k.isOutOfRange
                           ? "bg-zinc-950 opacity-20 cursor-not-allowed piano-key-out-of-range"
                           : ""
@@ -625,7 +635,7 @@ export const HardwareSkeleton: React.FC<HardwareSkeletonProps> = React.memo(({
                       style={{ flexShrink: 0 }}
                     >
                       {qwertyLabel && !k.isOutOfRange && (
-                        <span className="piano-key-label hidden lg:block absolute bottom-1.5 left-1/2 -translate-x-1/2 font-mono text-[9px] font-bold tracking-tight select-none pointer-events-none transition-colors text-zinc-400/90">
+                        <span className="piano-key-label hidden lg:block absolute bottom-1.5 left-1/2 -translate-x-1/2 font-mono text-[9px] font-bold tracking-tight select-none pointer-events-none text-zinc-400/90">
                           {qwertyLabel}
                         </span>
                       )}
@@ -639,28 +649,37 @@ export const HardwareSkeleton: React.FC<HardwareSkeletonProps> = React.memo(({
                     data-piano-note={k.note}
                     onPointerDown={(e) => {
                       if (k.isOutOfRange) return;
+                      e.currentTarget.classList.add("piano-key-active");
                       try {
                         e.currentTarget.releasePointerCapture(e.pointerId);
                       } catch {}
                       onTriggerNote(k.note, 100);
                     }}
-                    onPointerUp={() => {
+                    onPointerUp={(e) => {
                       if (k.isOutOfRange) return;
+                      e.currentTarget.classList.remove("piano-key-active");
                       onReleaseNote(k.note);
                     }}
-                    onPointerCancel={() => {
+                    onPointerCancel={(e) => {
                       if (k.isOutOfRange) return;
+                      e.currentTarget.classList.remove("piano-key-active");
                       onReleaseNote(k.note);
                     }}
                     onPointerEnter={(e) => {
                       if (k.isOutOfRange) return;
-                      if (e.buttons === 1 || e.pressure > 0) onTriggerNote(k.note, 100);
+                      if (e.buttons === 1 || e.pressure > 0) {
+                        e.currentTarget.classList.add("piano-key-active");
+                        onTriggerNote(k.note, 100);
+                      }
                     }}
                     onPointerLeave={(e) => {
                       if (k.isOutOfRange) return;
-                      if (e.buttons === 1 || e.pressure > 0) onReleaseNote(k.note);
+                      if (e.buttons === 1 || e.pressure > 0) {
+                        e.currentTarget.classList.remove("piano-key-active");
+                        onReleaseNote(k.note);
+                      }
                     }}
-                    className={`flex-1 min-w-[13px] sm:min-w-[15px] lg:min-w-[20px] h-full rounded-b-[4px] relative z-10 piano-key-white ${
+                    className={`flex-1 min-w-0 h-full rounded-b-[4px] relative z-10 touch-none piano-key-white ${
                       k.isOutOfRange
                         ? "bg-zinc-900/60 opacity-20 cursor-not-allowed piano-key-out-of-range"
                         : ""
@@ -668,7 +687,7 @@ export const HardwareSkeleton: React.FC<HardwareSkeletonProps> = React.memo(({
                   >
                     {isCKey && (
                       <span
-                        className={`piano-key-octave absolute left-1/2 -translate-x-1/2 font-mono font-bold tracking-tight select-none pointer-events-none transition-all ${
+                        className={`piano-key-octave absolute left-1/2 -translate-x-1/2 font-mono font-bold tracking-tight select-none pointer-events-none ${
                           qwertyLabel && !k.isOutOfRange ? "bottom-1.5 lg:bottom-7 text-[7.5px] lg:text-[8.5px]" : "bottom-1.5 lg:bottom-2.5 text-[7.5px] lg:text-[9.5px]"
                         } ${isMiddleC ? "text-cyan-700 font-extrabold" : "text-zinc-500 font-bold"}`}
                       >
@@ -677,7 +696,7 @@ export const HardwareSkeleton: React.FC<HardwareSkeletonProps> = React.memo(({
                     )}
 
                     {qwertyLabel && !k.isOutOfRange && (
-                      <span className="piano-key-label hidden lg:block absolute bottom-2.5 left-1/2 -translate-x-1/2 font-mono text-[10px] font-bold tracking-tight select-none pointer-events-none transition-colors text-zinc-600/90">
+                      <span className="piano-key-label hidden lg:block absolute bottom-2.5 left-1/2 -translate-x-1/2 font-mono text-[10px] font-bold tracking-tight select-none pointer-events-none text-zinc-600/90">
                         {qwertyLabel}
                       </span>
                     )}

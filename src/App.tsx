@@ -773,13 +773,19 @@ export const App: React.FC = () => {
     bgQueueRunningRef.current = true;
 
     try {
-      // Orden de prioridad por peso: RX7 (19.3 MB) -> Piano (126.7 MB) -> Mellotron (116.2 MB) -> Rhodes (522.1 MB)
-      const priorityIds = [
-        'Yamaha_RX7_Drums.sf2',
-        'Piano - Realtime.sf2',
-        'Mellotron.sf2',
-        'Rhodes (from Dream Piano).sf2',
-      ];
+      const isMobileDevice =
+        typeof window !== 'undefined' &&
+        (window.innerWidth < 1024 || window.matchMedia('(pointer: coarse)').matches);
+
+      // En mobile solo asegurar RX7 + Piano; en Desktop pre-cargar los 4 instrumentos
+      const priorityIds = isMobileDevice
+        ? ['Yamaha_RX7_Drums.sf2', 'Piano - Realtime.sf2']
+        : [
+            'Yamaha_RX7_Drums.sf2',
+            'Piano - Realtime.sf2',
+            'Mellotron.sf2',
+            'Rhodes (from Dream Piano).sf2',
+          ];
       const orderedFactory = priorityIds
         .map((id) => FACTORY_INSTRUMENTS.find((f) => f.id === id))
         .filter((f): f is FactoryInstrumentDef => Boolean(f));
@@ -1613,8 +1619,8 @@ export const App: React.FC = () => {
       onDrop={handleFileDrop}
       className="min-h-screen w-screen flex flex-col bg-[#050507] text-slate-100 select-none overflow-x-hidden font-sans relative"
     >
-      {/* Capas de Fondo de Estudio Noir (Spotlight + Micro-Malla + Aura Reactiva + Viñeta) */}
-      <div className="absolute inset-0 pointer-events-none z-0 overflow-hidden">
+      {/* Capas de Fondo de Estudio Noir (Spotlight + Micro-Malla + Aura Reactiva + Viñeta; ocultas en mobile para 0% costo de composición en GPU móvil) */}
+      <div className="hidden lg:block absolute inset-0 pointer-events-none z-0 overflow-hidden">
         {/* 1. Iluminación Cenital Definida (Studio Overhead Spotlight) */}
         <div
           className="absolute inset-0"
@@ -1719,8 +1725,8 @@ export const App: React.FC = () => {
 
       {/* Contenido Principal: Consola Flotante Centrada Ergonómicamente */}
       <main className="flex-1 p-1 sm:p-1.5 lg:py-3 lg:px-4 flex flex-col justify-center items-center relative z-10 my-auto safe-horizontal">
-        <div className="studio-console flex flex-col w-full max-w-6xl my-auto transition-all duration-200">
-          <div className="bg-[#050508] border border-white/[0.12] rounded-xl lg:rounded-2xl shadow-[0_20px_60px_rgba(0,0,0,0.95),0_0_1px_1px_rgba(255,255,255,0.06),inset_0_1px_0_0_rgba(255,255,255,0.1)] flex flex-col overflow-hidden select-none transition-all duration-200 w-full">
+        <div className="studio-console flex flex-col w-full max-w-6xl my-auto">
+          <div className="bg-[#050508] border border-white/[0.12] rounded-xl lg:rounded-2xl lg:shadow-[0_20px_60px_rgba(0,0,0,0.95),0_0_1px_1px_rgba(255,255,255,0.06),inset_0_1px_0_0_rgba(255,255,255,0.1)] flex flex-col overflow-hidden select-none w-full">
             <HardwareSkeleton
               faders={faders}
               knobs={knobs}

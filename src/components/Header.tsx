@@ -113,7 +113,7 @@ export const Header: React.FC<HeaderProps> = React.memo(({
   };
 
   return (
-    <header className="h-9 lg:h-14 bg-[#08080a]/80 backdrop-blur-md border-b border-white/[0.08] px-3 md:px-6 flex items-center justify-center z-30 shadow-[0_4px_30px_rgba(0,0,0,0.5),inset_0_1px_0_0_rgba(255,255,255,0.06)] w-full shrink-0 transition-all safe-horizontal">
+    <header className="h-9 lg:h-14 bg-[#08080a] lg:bg-[#08080a]/80 lg:backdrop-blur-md border-b border-white/[0.08] px-3 md:px-6 flex items-center justify-center z-30 lg:shadow-[0_4px_30px_rgba(0,0,0,0.5),inset_0_1px_0_0_rgba(255,255,255,0.06)] w-full shrink-0 safe-horizontal">
       {/* Contenedor con márgenes idénticos a los del chasis del instrumento (max-w-6xl) */}
       <div className="w-full max-w-6xl flex items-center justify-between gap-2 lg:gap-3">
         {/* Lado Izquierdo: Brand Logo + Selector de Instrumento + Monitores Hardware Inline */}
