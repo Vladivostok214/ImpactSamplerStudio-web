@@ -50,7 +50,7 @@ export class WebAudioBridge {
         // 2. Cargar el módulo AudioWorkletProcessor compilado por Vite
         await this.ctx.audioWorklet.addModule(workletUrl);
 
-        // 3. Crear el AudioWorkletNode pasando el WebAssembly.Module compilado
+        // 3. Crear el AudioWorkletNode pasando el WebAssembly.Module compilado en processorOptions
         this.workletNode = new AudioWorkletNode(this.ctx, 'impact-audio-processor', {
           numberOfInputs: 0,
           numberOfOutputs: 1,
@@ -59,9 +59,6 @@ export class WebAudioBridge {
             wasmModule,
           },
         });
-
-        // Inicialización de respaldo en caso de que processorOptions no clone WebAssembly.Module
-        this.workletNode.port.postMessage({ type: 'INIT_WASM', wasmModule });
 
         // 4. Configurar receptor de mensajes de alta velocidad desde el hilo de audio
         this.workletNode.port.onmessage = (event: MessageEvent) => {
@@ -170,20 +167,23 @@ export class WebAudioBridge {
     return this.ctx;
   }
 
-  public async loadSoundFont(buffer: ArrayBuffer, name: string): Promise<void> {
+  public async loadSoundFont(buffer: ArrayBuffer, name: string, transfer: boolean = false): Promise<void> {
     await this.initialize();
     if (!this.workletNode) throw new Error('Motor de audio no inicializado');
 
     const loadId = `${Date.now()}_${Math.random()}`;
     return new Promise<void>((resolve, reject) => {
       this.soundFontLoadResolvers.set(loadId, { resolve, reject });
-      // Enviar el buffer al AudioWorklet (sin transferirlo para preservar almacenamiento IndexedDB)
-      this.workletNode!.port.postMessage({
-        type: 'LOAD_SOUNDFONT',
-        loadId,
-        buffer,
-        name,
-      });
+      // Enviar el buffer al AudioWorklet (usando Transferable zero-copy cuando ya fue persistido/parseado)
+      this.workletNode!.port.postMessage(
+        {
+          type: 'LOAD_SOUNDFONT',
+          loadId,
+          buffer,
+          name,
+        },
+        transfer ? [buffer] : []
+      );
       this.hasLoggedProcessError = false;
     });
   }

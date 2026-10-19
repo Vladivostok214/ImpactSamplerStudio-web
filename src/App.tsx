@@ -45,13 +45,55 @@ async function downloadSf2Buffer(
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
   const contentLength = response.headers.get('content-length');
-  const totalBytes = contentLength ? parseInt(contentLength, 10) : fileSizeMb * 1024 * 1024;
+  const exactLength = contentLength ? parseInt(contentLength, 10) : 0;
+  const totalBytes = exactLength > 0 ? exactLength : fileSizeMb * 1024 * 1024;
   const reader = response.body?.getReader();
   if (!reader) {
     const buf = await response.arrayBuffer();
     onProgress?.(100);
     return buf;
   }
+
+  // Si conocemos el tamaño exacto por Content-Length, pre-asignar un único buffer contiguo (evita duplicar >500 MB en RAM)
+  if (exactLength > 0) {
+    const preallocated = new Uint8Array(exactLength);
+    let receivedBytes = 0;
+    let overflowChunks: Uint8Array[] | null = null;
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (value) {
+        if (!overflowChunks && receivedBytes + value.length <= exactLength) {
+          preallocated.set(value, receivedBytes);
+        } else {
+          if (!overflowChunks) {
+            overflowChunks = [preallocated.subarray(0, receivedBytes)];
+          }
+          overflowChunks.push(value);
+        }
+        receivedBytes += value.length;
+        const pct = Math.min(99, Math.round((receivedBytes / totalBytes) * 100));
+        onProgress?.(pct);
+      }
+    }
+
+    onProgress?.(100);
+    if (!overflowChunks) {
+      return receivedBytes === exactLength
+        ? preallocated.buffer
+        : preallocated.buffer.slice(0, receivedBytes);
+    }
+
+    const full = new Uint8Array(receivedBytes);
+    let off = 0;
+    for (const ch of overflowChunks) {
+      full.set(ch, off);
+      off += ch.length;
+    }
+    return full.buffer;
+  }
+
   let receivedBytes = 0;
   const chunks: Uint8Array[] = [];
   while (true) {
@@ -89,6 +131,10 @@ export const App: React.FC = () => {
 
   // Estados de Modo Workstation y Secuenciador Rítmico (Bloque 4)
   const [workstationMode, setWorkstationMode] = useState<'keys' | 'seq'>('keys');
+  const workstationModeRef = useRef<'keys' | 'seq'>(workstationMode);
+  workstationModeRef.current = workstationMode;
+  const latestStepRef = useRef<number>(0);
+
   const [sequencerState, setSequencerState] = useState<SequencerStateInfo>({
     isPlaying: false,
     isPaused: false,
@@ -109,7 +155,6 @@ export const App: React.FC = () => {
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [isRecording, setIsRecording] = useState<boolean>(false);
   const [isMetronomeActive, setIsMetronomeActive] = useState<boolean>(false);
-  const [, setCurrentBeat] = useState<number>(0);
   const isMetronomeActiveRef = useRef(isMetronomeActive);
   isMetronomeActiveRef.current = isMetronomeActive;
 
@@ -122,6 +167,10 @@ export const App: React.FC = () => {
     rate: 'sixteenth',
     octaves: 1,
   });
+  const arpStateRef = useRef(arpState);
+  arpStateRef.current = arpState;
+  const bpmRef = useRef(bpm);
+  bpmRef.current = bpm;
 
   // SoundFont Activo
   const [currentSoundfont, setCurrentSoundfont] = useState<SoundFontInfo | null>(null);
@@ -201,7 +250,7 @@ export const App: React.FC = () => {
     audioBridge.seqSetRecording(false);
     setIsPlaying(false);
     setIsRecording(false);
-    setCurrentBeat(0);
+    latestStepRef.current = 0;
     audioBridge.noteOffAll(false);
     clearAllVisualKeys();
     setSequencerState((prev) => ({ ...prev, isPlaying: false, isPaused: false, isRecording: false, currentStep: 0 }));
@@ -506,34 +555,33 @@ export const App: React.FC = () => {
     };
   }, []);
 
-  // Enlace sample-accurate del metrónomo acústico y beat tracker (1, 2, 3, 4) con el paso del secuenciador
+  // Enlace sample-accurate del metrónomo acústico y playhead del secuenciador
   useEffect(() => {
     const unsub = audioBridge.onStepChange((step) => {
-      setSequencerState((prev) => (prev.currentStep !== step ? { ...prev, currentStep: step } : prev));
+      latestStepRef.current = step;
+
+      // Solo re-renderizar por cambio de paso cuando la vista del secuenciador ('seq') está visible
+      if (workstationModeRef.current === 'seq') {
+        setSequencerState((prev) => (prev.currentStep !== step ? { ...prev, currentStep: step } : prev));
+      }
 
       // En resolución de semicorcheas (16th): 4 pasos por beat (pasos 0, 4, 8, 12, 16, 20, 24, 28)
-      if (step % 4 === 0) {
-        const beat = Math.floor(step / 4) % 4;
-        setCurrentBeat(beat);
-        if (isMetronomeActiveRef.current) {
-          const isDownbeat = step === 0 || step === 16;
-          audioBridge.playMetronomeClick(isDownbeat);
-        }
+      if (step % 4 === 0 && isMetronomeActiveRef.current) {
+        const isDownbeat = step === 0 || step === 16;
+        audioBridge.playMetronomeClick(isDownbeat);
       }
     });
 
     return unsub;
   }, []);
 
-
-
-  // Auto-activación inmediata del motor de audio ante la carga y ante cualquier primera interacción
+  // Auto-activación inmediata del motor de audio ante la carga y ante cualquier primera interacción (registrado 1 sola vez)
   useEffect(() => {
     const activateAudio = async () => {
       try {
         await audioBridge.initialize();
         await audioBridge.resumeAudio();
-        audioBridge.syncArpState(arpState, bpm);
+        audioBridge.syncArpState(arpStateRef.current, bpmRef.current);
         setIsAudioStarted(true);
       } catch (err) {
         console.warn('Audio auto-activation notice:', err);
@@ -560,7 +608,7 @@ export const App: React.FC = () => {
       window.removeEventListener('keydown', onUserInteraction);
       window.removeEventListener('touchstart', onUserInteraction);
     };
-  }, [arpState, bpm]);
+  }, []);
 
   const handleFileDrop = async (e: React.DragEvent) => {
     e.preventDefault();
@@ -580,10 +628,9 @@ export const App: React.FC = () => {
   ) => {
     setIsLoadingSf2(true);
     try {
-      await audioBridge.initialize();
-      await audioBridge.loadSoundFont(data, filename);
+      // 1. Parsear presets y persistir en IndexedDB antes de transferir el ArrayBuffer al AudioWorklet (Zero-Copy)
+      const presets = parseSf2Presets(data);
 
-      // Persistir en IndexedDB
       await SoundFontStorage.save({
         id,
         filename,
@@ -599,7 +646,10 @@ export const App: React.FC = () => {
       const list = await SoundFontStorage.list();
       setSavedSoundfonts(list);
 
-      const presets = parseSf2Presets(data);
+      // 2. Transferir propiedad del ArrayBuffer al hilo del AudioWorklet sin clonar en RAM
+      await audioBridge.initialize();
+      await audioBridge.loadSoundFont(data, filename, true);
+
       const sfInfo: SoundFontInfo = {
         id,
         filename,
@@ -660,8 +710,9 @@ export const App: React.FC = () => {
           const stored = await SoundFontStorage.get(targetId);
 
           if (stored && isMounted) {
+            const presets = parseSf2Presets(stored.data);
             await audioBridge.initialize();
-            await audioBridge.loadSoundFont(stored.data, stored.filename);
+            await audioBridge.loadSoundFont(stored.data, stored.filename, true);
 
             // Sincronizar DSP y Arpegiador en WASM
             knobs.forEach((val, idx) => audioBridge.setKnob(idx, val));
@@ -669,7 +720,6 @@ export const App: React.FC = () => {
             audioBridge.setFxRouting(fxRouting);
             audioBridge.syncArpState(arpState, bpm);
 
-            const presets = parseSf2Presets(stored.data);
             const sfInfo: SoundFontInfo = {
               id: stored.id,
               filename: stored.filename,
@@ -839,12 +889,12 @@ export const App: React.FC = () => {
         return;
       }
 
+      const presets = parseSf2Presets(entry.data);
       await audioBridge.initialize();
-      await audioBridge.loadSoundFont(entry.data, entry.filename);
+      await audioBridge.loadSoundFont(entry.data, entry.filename, true);
 
       SoundFontStorage.setLastLoadedId(id);
 
-      const presets = parseSf2Presets(entry.data);
       const sfInfo: SoundFontInfo = {
         id: entry.id,
         filename: entry.filename,
@@ -970,9 +1020,11 @@ export const App: React.FC = () => {
 
   const handleChangeWorkstationMode = async (newMode: 'keys' | 'seq') => {
     if (newMode === workstationMode) return;
+    workstationModeRef.current = newMode;
     setWorkstationMode(newMode);
 
     if (newMode === 'seq') {
+      setSequencerState((prev) => ({ ...prev, currentStep: latestStepRef.current }));
       // Si entramos a SEQ y no tenemos RX7 activo, recordar melódico y cargar RX7
       if (!currentSoundfont?.filename.toLowerCase().includes('rx7')) {
         if (currentSoundfont) {
@@ -980,8 +1032,8 @@ export const App: React.FC = () => {
         }
         const rx7Entry = await SoundFontStorage.get('Yamaha_RX7_Drums.sf2');
         if (rx7Entry) {
-          await audioBridge.loadSoundFont(rx7Entry.data, rx7Entry.filename);
           const presets = parseSf2Presets(rx7Entry.data);
+          await audioBridge.loadSoundFont(rx7Entry.data, rx7Entry.filename, true);
           const sfInfo: SoundFontInfo = {
             id: rx7Entry.id,
             filename: rx7Entry.filename,
@@ -1001,8 +1053,8 @@ export const App: React.FC = () => {
         const targetId = lastMelodicSoundfontRef.current?.id || 'Piano - Realtime.sf2';
         const stored = await SoundFontStorage.get(targetId);
         if (stored) {
-          await audioBridge.loadSoundFont(stored.data, stored.filename);
           const presets = parseSf2Presets(stored.data);
+          await audioBridge.loadSoundFont(stored.data, stored.filename, true);
           const sfInfo: SoundFontInfo = {
             id: stored.id,
             filename: stored.filename,

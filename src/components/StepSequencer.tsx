@@ -140,7 +140,7 @@ const PAD_ROLE_THEMES = [
 
 const STEPS_16 = Array.from({ length: 16 }, (_, i) => i);
 
-export const StepSequencer: React.FC<StepSequencerProps> = ({
+export const StepSequencer: React.FC<StepSequencerProps> = React.memo(({
   viewMode = "keys",
   onChangeViewMode,
   sequencerState,
@@ -1281,4 +1281,4 @@ export const StepSequencer: React.FC<StepSequencerProps> = ({
       </div>
     </div>
   );
-};
+});

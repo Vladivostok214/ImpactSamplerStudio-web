@@ -61,7 +61,7 @@ const FADER_PAD_COLORS = [
   { line: "bg-cyan-400 shadow-[0_0_8px_#22d3ee]", dot: "bg-cyan-400", border: "border-cyan-400/50" }, // Master F9
 ];
 
-export const HardwareSkeleton: React.FC<HardwareSkeletonProps> = ({
+export const HardwareSkeleton: React.FC<HardwareSkeletonProps> = React.memo(({
   faders,
   knobs,
   pitchBend,
@@ -678,4 +678,4 @@ export const HardwareSkeleton: React.FC<HardwareSkeletonProps> = ({
       {children && <div className="relative z-40">{children}</div>}
     </div>
   );
-};
+});

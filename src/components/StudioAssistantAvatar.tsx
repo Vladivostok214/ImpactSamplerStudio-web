@@ -23,8 +23,9 @@ export const StudioAssistantAvatar: React.FC<StudioAssistantAvatarProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedFaqId, setExpandedFaqId] = useState<string | null>(null);
 
-  // Posición relativa de la mirada (seguimiento sutil del cursor)
-  const [lookPos, setLookPos] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  // Referencias directas a las pupilas SVG para evitar re-renders de React en mousemove (0% CPU UI)
+  const containerRef = React.useRef<HTMLDivElement>(null);
+  const lookPosRef = React.useRef<{ x: number; y: number }>({ x: 0, y: 0 });
 
   // Ciclo orgánico de parpadeo (cada 3.5 a 5 segundos)
   useEffect(() => {
@@ -52,18 +53,38 @@ export const StudioAssistantAvatar: React.FC<StudioAssistantAvatarProps> = ({
     return () => clearTimeout(timer);
   }, []);
 
-  // Seguimiento suave del cursor del ratón para dar vida a la mirada
+  // Seguimiento suave del cursor del ratón mediante rAF y manipulación directa de atributos SVG (0 re-renders)
   useEffect(() => {
+    let rafId: number | null = null;
+
     const handleMouseMove = (e: MouseEvent) => {
-      const winW = window.innerWidth;
-      const winH = window.innerHeight;
-      const x = ((e.clientX / winW) - 0.5) * 2; // -1 a 1
-      const y = ((e.clientY / winH) - 0.5) * 2;
-      setLookPos({ x: Math.max(-1, Math.min(1, x)), y: Math.max(-1, Math.min(1, y)) });
+      const winW = window.innerWidth || 1;
+      const winH = window.innerHeight || 1;
+      const x = Math.max(-1, Math.min(1, (e.clientX / winW - 0.5) * 2));
+      const y = Math.max(-1, Math.min(1, (e.clientY / winH - 0.5) * 2));
+      lookPosRef.current = { x, y };
+
+      if (rafId === null) {
+        rafId = requestAnimationFrame(() => {
+          rafId = null;
+          if (!containerRef.current) return;
+          const { x: lx, y: ly } = lookPosRef.current;
+          const pupils = containerRef.current.querySelectorAll<SVGGElement>('[data-vostok-pupil]');
+          pupils.forEach((el) => {
+            const isSm = el.getAttribute('data-vostok-pupil') === 'sm';
+            const px = (lx * (isSm ? 1.8 : 3.5)).toFixed(2);
+            const py = (ly * (isSm ? 1.2 : 2.5)).toFixed(2);
+            el.setAttribute('transform', `translate(${px}, ${py})`);
+          });
+        });
+      }
     };
 
-    window.addEventListener('mousemove', handleMouseMove);
-    return () => window.removeEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mousemove', handleMouseMove, { passive: true });
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      if (rafId !== null) cancelAnimationFrame(rafId);
+    };
   }, []);
 
   // Cerrar con tecla Escape
@@ -108,8 +129,8 @@ export const StudioAssistantAvatar: React.FC<StudioAssistantAvatarProps> = ({
   // Renderizador de ojos humanos/cibernéticos estilizados
   const renderEyes = (size: 'sm' | 'lg' = 'sm') => {
     const isSm = size === 'sm';
-    const pupilOffsetX = lookPos.x * (isSm ? 1.8 : 3.5);
-    const pupilOffsetY = lookPos.y * (isSm ? 1.2 : 2.5);
+    const pupilOffsetX = (lookPosRef.current.x * (isSm ? 1.8 : 3.5)).toFixed(2);
+    const pupilOffsetY = (lookPosRef.current.y * (isSm ? 1.2 : 2.5)).toFixed(2);
 
     const eyeScaleY = isBlinking ? 0.08 : isHovered ? 1.15 : 1;
 
@@ -151,7 +172,7 @@ export const StudioAssistantAvatar: React.FC<StudioAssistantAvatarProps> = ({
             strokeOpacity="0.8"
           />
           {/* Iris Esmeralda Reactivo */}
-          <g transform={`translate(${pupilOffsetX}, ${pupilOffsetY})`}>
+          <g data-vostok-pupil={size} transform={`translate(${pupilOffsetX}, ${pupilOffsetY})`}>
             <circle cx="0" cy="0" r="7.5" fill={`url(#irisGlow-${size})`} />
             {/* Pupila */}
             <circle cx="0" cy="0" r="3.8" fill="#021c14" />
@@ -175,7 +196,7 @@ export const StudioAssistantAvatar: React.FC<StudioAssistantAvatarProps> = ({
             strokeOpacity="0.8"
           />
           {/* Iris Esmeralda Reactivo */}
-          <g transform={`translate(${pupilOffsetX}, ${pupilOffsetY})`}>
+          <g data-vostok-pupil={size} transform={`translate(${pupilOffsetX}, ${pupilOffsetY})`}>
             <circle cx="0" cy="0" r="7.5" fill={`url(#irisGlow-${size})`} />
             {/* Pupila */}
             <circle cx="0" cy="0" r="3.8" fill="#021c14" />
@@ -189,7 +210,7 @@ export const StudioAssistantAvatar: React.FC<StudioAssistantAvatarProps> = ({
   };
 
   return (
-    <>
+    <div ref={containerRef}>
       {/* Botón Flotante del Avatar (Esquina inferior derecha) */}
       <div className="fixed bottom-12 right-4 z-40 flex items-center gap-3 select-none">
         {/* Burbuja de Saludo Inicial Flotante */}
@@ -442,6 +463,6 @@ export const StudioAssistantAvatar: React.FC<StudioAssistantAvatarProps> = ({
           </div>
         </>
       )}
-    </>
+    </div>
   );
 };
