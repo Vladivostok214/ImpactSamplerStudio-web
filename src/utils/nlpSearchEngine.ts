@@ -47,13 +47,30 @@ const INTENT_SYNONYMS: Record<string, string[]> = {
   reverb: ['ambiente', 'sala', 'espacio', 'reverberacion'],
   ruteo: ['routing', 'fx keys', 'fx pads', 'bypass', 'activar efectos'],
 
-  // Intención: Instrumentos / Sonidos
-  instrumento: ['sonido', 'soundfont', 'sf2', 'piano', 'mellotron', 'rhodes', 'rx7', 'preset', 'patch'],
-  mellotron: ['flauta', 'cuerdas', 'coro', 'voces', 'tape', 'vintage'],
-  preset: ['presets', 'patch', 'programa', 'sonido'],
+  // Intención: Arpegiador / Expresión
+  arpegiador: ['arp', 'arpegio', 'hold', 'arp hold', 'acordes', 'secuencia', 'rate', 'up', 'down', 'random', 'notas repetidas'],
+  pitch: ['pitch bend', 'afinacion', 'tono', 'rueda', 'modulacion', 'mod wheel', 'vibrato', 'bend'],
+
+  // Intención: Controladores y MIDI Learn
+  midi: ['controlador', 'teclado midi', 'usb', 'conectar', 'dispositivo', 'web midi', 'akai', 'arturia', 'novation', 'nektar', 'korg'],
+  learn: ['midi learn', 'aprender', 'mapear', 'asignar', 'vincular', 'enlazar', 'ambar', 'perillas', 'faders', 'pads'],
+
+  // Intención: Cuantización y Malla
+  cuantizar: ['cuantizacion', 'q', 'strength', 'fuerza', 'alinear', 'groove', 'rejilla', 'grid', 'malla'],
+  grid: ['malla', 'resolucion', 'paginas', 'page', 'fusa', 'redoble', 'trap', '1 8', '1 16', '1 32', 'compas'],
+  tap: ['tap tempo', 'tempo', 'bpm', 'velocidad', 'ritmo', 'pulsar', 'marcar'],
+
+  // Intención: Modo Offline y Almacenamiento
+  offline: ['sin internet', 'desconectado', 'wifi', 'avion', 'local', 'guardar', 'cache', 'viaje', 'almacenamiento', 'indexeddb'],
+
+  // Intención: Latencia y Rendimiento
+  latencia: ['retraso', 'chasquidos', 'ruido', 'clicks', 'buffer', 'bluetooth', 'auriculares', 'lento', 'crujido'],
+
+  // Intención: Concepto y Motor
+  impact: ['que es', 'como funciona', 'motor', 'wasm', 'webassembly', 'arquitectura', 'dsp', 'aplicacion', 'sampler'],
 
   // Intención: Solución de problemas / Silencio
-  silencio: ['no suena', 'no escucho', 'mudo', 'se corta', 'volumen', 'fader'],
+  silencio: ['no suena', 'no escucho', 'mudo', 'se corta', 'volumen', 'fader', 'sin sonido'],
 };
 
 // Normalizar texto eliminando tildes y caracteres especiales

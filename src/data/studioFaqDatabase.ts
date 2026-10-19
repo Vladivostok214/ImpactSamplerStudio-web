@@ -291,4 +291,165 @@ export const FAQ_DATABASE: FaqItem[] = [
     ],
     tags: ['preset', 'presets', 'patch', 'mellotron', 'flauta', 'cuerdas', 'voces', 'timbre', 'cambiar'],
   },
+
+  // --- ARPEGIADOR & EXPRESIÓN ---
+  {
+    id: 'arp-how-it-works',
+    category: 'qwerty',
+    categoryLabel: 'Arpegiador & Modos',
+    question: '¿Qué es el arpegiador y cómo configurarlo?',
+    shortAnswer: 'Descompone los acordes que tocas en patrones melódicos rítmicos sincronizados al tempo.',
+    detailedSteps: [
+      '1. Presiona el botón ARP (junto a las ruedas) para activarlo o desactivarlo.',
+      '2. Haz clic en el icono de ajustes (⚙) para seleccionar el Modo: UP (ascendente), DOWN (descendente), UP/DOWN o RANDOM (aleatorio).',
+      '3. Configura la velocidad métrica (Rate: 1/4, 1/8, 1/16, 1/32) y el número de octavas que recorrerá (1 a 4).',
+    ],
+    tags: ['arpegiador', 'arp', 'acordes', 'secuencia', 'modo', 'up', 'down', 'random', 'rate', 'velocidad', 'octavas'],
+  },
+  {
+    id: 'arp-hold-feature',
+    category: 'qwerty',
+    categoryLabel: 'Arpegiador & Modos',
+    question: '¿Para qué sirve el botón ARP HOLD?',
+    shortAnswer: 'Mantiene el arpegio sonando en bucle aunque sueltes las teclas físicas.',
+    detailedSteps: [
+      '1. Toca un acorde con el arpegiador activado.',
+      '2. Presiona ARP HOLD (se iluminará en color cian).',
+      '3. Suelta las manos del teclado: el arpegio continuará indefinidamente al compás del BPM.',
+      '4. Esto te permite tener las manos libres para manipular perillas de filtro, faders o disparar percusión.',
+    ],
+    tags: ['hold', 'arp hold', 'mantener', 'loop', 'arpegiador', 'soltar', 'teclas', 'sonar'],
+  },
+  {
+    id: 'pitch-bend-mod-wheel',
+    category: 'qwerty',
+    categoryLabel: 'Controladores & Expresión',
+    question: '¿Cómo funcionan el Pitch Bend y la Rueda de Modulación?',
+    shortAnswer: 'Modifican la afinación continua y la intensidad del vibrato/LFO tanto en pantalla como por MIDI.',
+    detailedSteps: [
+      'Pitch Bend: Desliza la afinación continua +/- 2 semitonos. Vuelve automáticamente al centro al soltarlo.',
+      'Modulation Wheel (CC 1): Añade modulación tímbrica o vibrato expresivo. Permanece en la posición donde lo dejes.',
+      'Si conectas un teclado MIDI con ruedas físicas, se sincronizan automáticamente en tiempo real.',
+    ],
+    tags: ['pitch bend', 'afinacion', 'rueda', 'modulacion', 'mod wheel', 'vibrato', 'bend', 'semitonos'],
+  },
+
+  // --- MIDI LEARN Y CONTROLADORES ---
+  {
+    id: 'midi-learn-how-to',
+    category: 'midi',
+    categoryLabel: 'Controladores MIDI',
+    question: '¿Cómo mapear perillas o faders de mi controlador físico (MIDI Learn)?',
+    shortAnswer: 'El modo MIDI Learn te permite asignar cualquier fader, perilla, pad o botón a tu controlador físico.',
+    detailedSteps: [
+      '1. Haz clic en el botón ámbar MIDI LEARN en la barra superior (el marco parpadeará en color ámbar).',
+      '2. Haz clic en pantalla sobre el fader, perilla, botón de transporte o pad que desees vincular.',
+      '3. Mueve la perilla o fader, o presiona la tecla/pad en tu controlador MIDI físico.',
+      '4. La asignación se registrará al instante y se guardará automáticamente en tu navegador para futuras sesiones.',
+    ],
+    tags: ['midi learn', 'mapear', 'asignar', 'vincular', 'aprender', 'controlador', 'perillas', 'faders', 'ambar'],
+  },
+  {
+    id: 'midi-learn-compatible-devices',
+    category: 'midi',
+    categoryLabel: 'Controladores MIDI',
+    question: '¿Qué controladores MIDI son compatibles con la aplicación?',
+    shortAnswer: 'Cualquier teclado, launchpad o controlador USB class-compliant estándar es 100% compatible sin instalar drivers.',
+    detailedSteps: [
+      'Compatible con marcas como Nektar, Novation, Akai, Arturia, Korg, M-Audio, Alesis, Native Instruments, etc.',
+      'Funciona directamente a través del protocolo Web MIDI nativo del navegador.',
+      'Puedes usar tanto teclas de piano como faders, knobs rotatorios y drum pads.',
+    ],
+    tags: ['controlador', 'teclados compatibles', 'marcas', 'akai', 'arturia', 'novation', 'nektar', 'korg', 'usb'],
+  },
+
+  // --- SECUENCIADOR RÍTMICO AVANZADO ---
+  {
+    id: 'seq-grid-pages',
+    category: 'sequencer',
+    categoryLabel: 'Secuenciador & Grabación',
+    question: '¿Cómo funciona la resolución rítmica (GRID) y las Páginas 1 y 2?',
+    shortAnswer: 'El selector GRID define la subdivisión de tiempo entre corcheas (1/8), semicorcheas (1/16) y fusas (1/32).',
+    detailedSteps: [
+      '1/8: Ritmos espaciados de corcheas (16 pasos en total).',
+      '1/16: La subdivisión clásica estándar de 16 pasos por compás.',
+      '1/32: Subdivisión rápida para redobles de hi-hats estilo Trap. Al elegir 1/32 se habilitan las páginas [1] y [2] para ver los 32 pasos completos con indicador LED de seguimiento.',
+    ],
+    tags: ['grid', 'malla', 'resolucion', 'paginas', 'page', '1 8', '1 16', '1 32', 'fusa', 'redoble', 'trap'],
+    action: {
+      type: 'open_seq',
+      label: 'Abrir Secuenciador',
+    },
+  },
+  {
+    id: 'seq-quantize-q',
+    category: 'sequencer',
+    categoryLabel: 'Secuenciador & Grabación',
+    question: '¿Qué hace el botón Q (Cuantización) en el secuenciador?',
+    shortAnswer: 'Alinea automáticamente los golpes grabados en vivo a la subdivisión rítmica exacta.',
+    detailedSteps: [
+      'Al hacer clic en [ Q ] se abre el panel de cuantización.',
+      'Strength (Fuerza): Permite ajustar el grado de corrección de 0% (groove humano original) a 100% (alineación matemática precisa).',
+      'Botón Re-Quantize: Aplica la cuantización a todas las pistas del patrón activo de inmediato.',
+    ],
+    tags: ['cuantizar', 'cuantizacion', 'q', 'strength', 'fuerza', 'alinear', 'groove', 'ritmo', 'tiempo'],
+    action: {
+      type: 'open_seq',
+      label: 'Ir al Secuenciador',
+    },
+  },
+  {
+    id: 'seq-tap-tempo',
+    category: 'sequencer',
+    categoryLabel: 'Secuenciador & Grabación',
+    question: '¿Cómo usar el botón TAP Tempo para fijar los BPM?',
+    shortAnswer: 'Pulsa rítmicamente el botón TAP al pulso deseado y el BPM se calculará automáticamente.',
+    detailedSteps: [
+      '1. Pulsa el botón TAP 3 o 4 veces seguidas siguiendo el ritmo que imaginas en tu cabeza.',
+      '2. El sistema promedia las pulsaciones y fija el tempo de inmediato.',
+      '3. También puedes hacer doble clic sobre el número de BPM en la pantalla VFD para escribirlo directamente.',
+    ],
+    tags: ['tap', 'tap tempo', 'bpm', 'velocidad', 'ritmo', 'pulsar', 'marcar', 'tempo'],
+  },
+
+  // --- MOTOR, ALMACENAMIENTO Y MODO OFFLINE ---
+  {
+    id: 'app-offline-mode',
+    category: 'soundfonts',
+    categoryLabel: 'Arquitectura & Offline',
+    question: '¿Se puede usar la aplicación sin conexión a internet (Offline)?',
+    shortAnswer: '¡Sí! Una vez cargada en el navegador y guardados los instrumentos, funciona 100% offline.',
+    detailedSteps: [
+      'El motor DSP de audio y síntesis SF2 está compilado en WebAssembly (WASM) y corre localmente en tu CPU.',
+      'Los instrumentos que descargas se almacenan permanentemente en la base de datos IndexedDB de tu navegador.',
+      'Puedes usarla en viajes, aviones o en vivo en el escenario sin necesidad de conexión Wi-Fi.',
+    ],
+    tags: ['offline', 'sin internet', 'desconectado', 'wifi', 'avion', 'local', 'guardar', 'cache', 'viaje'],
+  },
+  {
+    id: 'audio-latency-clicks',
+    category: 'effects',
+    categoryLabel: 'Optimización de Audio',
+    question: '¿Cómo solucionar latencia, chasquidos o ruidos en el audio?',
+    shortAnswer: 'La latencia suele deberse al uso de auriculares Bluetooth o a saturación de CPU.',
+    detailedSteps: [
+      '1. Auriculares: Evita auriculares Bluetooth, ya que introducen entre 100ms y 250ms de retraso inalámbrico. Usa auriculares con cable.',
+      '2. Frecuencia: Asegúrate de que tu interfaz o tarjeta de audio esté a 44.1 kHz o 48 kHz.',
+      '3. CPU: Cierra pestañas pesadas o programas en segundo plano para garantizar rendimiento de audio en tiempo real.',
+    ],
+    tags: ['latencia', 'retraso', 'chasquidos', 'ruido', 'clicks', 'buffer', 'bluetooth', 'auriculares', 'lento'],
+  },
+  {
+    id: 'general-what-is-impact',
+    category: 'soundfonts',
+    categoryLabel: 'Acerca del Estudio',
+    question: '¿Qué es Impact Sampler Studio y cómo funciona su motor?',
+    shortAnswer: 'Es una estación de trabajo de producción musical y sampler híbrido con teclado cromático y secuenciador TR.',
+    detailedSteps: [
+      'Núcleo en WebAssembly (WASM): Procesa polifonía multicapa estéreo con latencia sub-milisegundo vía AudioWorklet.',
+      'Soporte SoundFont 2 (.sf2): Compatible con bibliotecas de instrumentos orquestales, vintage y acústicos.',
+      'Diseño Noir-Tech: Estética de consola hardware física con cero distracción y máxima respuesta táctil.',
+    ],
+    tags: ['que es', 'impact sampler', 'como funciona', 'motor', 'wasm', 'webassembly', 'arquitectura', 'dsp'],
+  },
 ];
