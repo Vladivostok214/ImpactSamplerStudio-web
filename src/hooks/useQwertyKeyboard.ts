@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 
 export const QWERTY_BASE_NOTE = 60; // C4 (Middle C)
-export const QWERTY_VELOCITY = 85;
+export const QWERTY_VELOCITY = 127;
 export const MIN_OCTAVE_OFFSET = -2; // C2 (36)
 export const MAX_OCTAVE_OFFSET = 2; // C6 (84)
 
@@ -48,6 +48,7 @@ export interface KeyRange {
 
 export interface UseQwertyKeyboardOptions {
   enabled: boolean;
+  velocity?: number;
   keyRange?: KeyRange;
   onNoteOn: (note: number, velocity: number) => void;
   onNoteOff: (note: number) => void;
@@ -91,6 +92,7 @@ function isTypingTarget(target: EventTarget | null): boolean {
 
 export function useQwertyKeyboard({
   enabled,
+  velocity = QWERTY_VELOCITY,
   keyRange,
   onNoteOn,
   onNoteOff,
@@ -106,8 +108,8 @@ export function useQwertyKeyboard({
   const callbacksRef = useRef({ onNoteOn, onNoteOff, onTogglePlay, onStop });
   callbacksRef.current = { onNoteOn, onNoteOff, onTogglePlay, onStop };
 
-  const stateRef = useRef({ octaveOffset, keyRange, enabled });
-  stateRef.current = { octaveOffset, keyRange, enabled };
+  const stateRef = useRef({ octaveOffset, keyRange, enabled, velocity });
+  stateRef.current = { octaveOffset, keyRange, enabled, velocity };
 
   const releaseAll = useCallback(() => {
     if (activeKeysRef.current.size === 0) return;
@@ -173,7 +175,7 @@ export function useQwertyKeyboard({
       if (e.code in QWERTY_PAD_NOTES) {
         const padNote = QWERTY_PAD_NOTES[e.code];
         activeKeysRef.current.set(e.code, { type: 'pad', note: padNote });
-        callbacksRef.current.onNoteOn(padNote, 100);
+        callbacksRef.current.onNoteOn(padNote, stateRef.current.velocity);
         e.preventDefault();
         return;
       }
@@ -197,7 +199,7 @@ export function useQwertyKeyboard({
         }
 
         activeKeysRef.current.set(e.code, { type: 'note', note });
-        callbacksRef.current.onNoteOn(note, QWERTY_VELOCITY);
+        callbacksRef.current.onNoteOn(note, stateRef.current.velocity);
         e.preventDefault();
         return;
       }
