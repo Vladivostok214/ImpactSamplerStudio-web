@@ -6,9 +6,6 @@ import {
   Radio,
   Activity,
   Keyboard,
-  Music,
-  Upload,
-  Loader2,
   Sliders,
 } from "lucide-react";
 import { NormalizedMidiEvent } from "../types/midi";
@@ -18,7 +15,6 @@ import { SoundFontInfo } from "../types/soundfont";
 interface HeaderProps {
   onOpenInstrumentSelect: () => void;
   currentSoundfont: SoundFontInfo | null;
-  isLoadingSf2?: boolean;
   midiEvents?: NormalizedMidiEvent[];
   onClearMidiEvents?: () => void;
   midiDevices?: string[];
@@ -36,7 +32,6 @@ interface HeaderProps {
 export const Header: React.FC<HeaderProps> = ({
   onOpenInstrumentSelect,
   currentSoundfont,
-  isLoadingSf2 = false,
   midiEvents = [],
   onClearMidiEvents,
   midiDevices = [],
@@ -113,14 +108,14 @@ export const Header: React.FC<HeaderProps> = ({
       <div className="w-full max-w-6xl flex items-center justify-between gap-3">
         {/* Lado Izquierdo: Brand Logo + Selector de Instrumento + Monitores Hardware Inline */}
         <div className="flex items-center space-x-2.5 sm:space-x-3.5">
-          {/* Logo Principal Interactivo */}
+          {/* Logo Principal Interactivo (Abre Catálogo de Instrumentos) */}
           <button
             type="button"
             onMouseDown={(e) => e.preventDefault()}
             onClick={onOpenInstrumentSelect}
             className="text-sm font-black tracking-widest text-white flex items-center select-none hover:opacity-90 transition cursor-pointer group focus:outline-none shrink-0"
             style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif' }}
-            title="Seleccionar Instrumento"
+            title={currentSoundfont ? `Instrumento actual: ${currentSoundfont.displayName} (Clic para abrir catálogo)` : "Abrir Catálogo de Instrumentos"}
           >
             <div className="w-6 h-6 rounded-md overflow-hidden mr-2 border border-emerald-500/40 shadow-[0_0_10px_rgba(16,185,129,0.35)] flex items-center justify-center bg-black/60 shrink-0 group-hover:border-emerald-400 group-hover:shadow-[0_0_14px_rgba(16,185,129,0.6)] transition">
               <img src="/app-icon.png" alt="Impact Sampler" className="w-full h-full object-contain" />
@@ -128,30 +123,6 @@ export const Header: React.FC<HeaderProps> = ({
             <h1>
               IMPACT<span className="text-emerald-400 group-hover:drop-shadow-[0_0_10px_rgba(16,185,129,0.7)] transition-all">SAMPLER</span>
             </h1>
-          </button>
-
-          {/* Separador vertical */}
-          <div className="h-4 w-[1px] bg-white/10 hidden sm:block shrink-0" />
-
-          {/* Píldora de Instrumento Activo */}
-          <button
-            type="button"
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={onOpenInstrumentSelect}
-            className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-black/40 border border-white/10 hover:border-cyan-500/40 cursor-pointer transition text-xs font-mono group"
-            title="Abrir Catálogo de Instrumentos"
-          >
-            <Music className="w-3.5 h-3.5 text-cyan-400 group-hover:scale-110 transition shrink-0" />
-            {isLoadingSf2 ? (
-              <span className="text-amber-300 font-medium text-[11px] flex items-center gap-1">
-                <Loader2 className="w-3 h-3 animate-spin" /> Cargando...
-              </span>
-            ) : (
-              <span className="text-cyan-300 font-medium text-[11px] truncate max-w-[120px] sm:max-w-[170px]">
-                {currentSoundfont ? currentSoundfont.displayName : "Explorar Instrumentos"}
-              </span>
-            )}
-            <Upload className="w-3 h-3 text-slate-500 group-hover:text-cyan-400 ml-0.5 transition shrink-0" />
           </button>
 
           {/* Monitores Inline Telemetría (MIDI & Web Audio) */}

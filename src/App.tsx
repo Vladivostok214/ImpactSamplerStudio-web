@@ -77,7 +77,7 @@ async function downloadSf2Buffer(
 export const App: React.FC = () => {
   const [isAudioStarted, setIsAudioStarted] = useState(false);
   const [midiDevices, setMidiDevices] = useState<string[]>([]);
-  const [isLoadingSf2, setIsLoadingSf2] = useState(false);
+  const [, setIsLoadingSf2] = useState(false);
 
   // Estados de Hardware (Faders, Knobs, Ruedas)
   const [faders, setFaders] = useState<number[]>([64, 64, 64, 64, 64, 64, 64, 64, 100]);
@@ -1219,7 +1219,6 @@ export const App: React.FC = () => {
       <Header
         onOpenInstrumentSelect={() => setIsInstrumentModalOpen(true)}
         currentSoundfont={currentSoundfont}
-        isLoadingSf2={isLoadingSf2}
         midiEvents={midiEvents}
         onClearMidiEvents={() => setMidiEvents([])}
         midiDevices={midiDevices}
