@@ -251,7 +251,10 @@ export class WebAudioBridge {
     if (!this.workletNode) return;
     if (target !== 'drum' && (!this.currentSoundFontName || this.currentSoundFontName === 'Ninguno') && !this.drumEngineLoaded) return;
     this.resumeAudio();
-    this.workletNode.port.postMessage({ type: 'NOTE_ON', key, velocity, channel, target });
+    const baseLat = this.ctx?.baseLatency || 0.008;
+    const outLat = (this.ctx as AudioContext & { outputLatency?: number })?.outputLatency || 0.012;
+    const latencyMs = (baseLat + outLat) * 1000;
+    this.workletNode.port.postMessage({ type: 'NOTE_ON', key, velocity, channel, target, latencyMs });
   }
 
   public noteOff(key: number, channel: number = 0, target?: 'melodic' | 'drum'): void {

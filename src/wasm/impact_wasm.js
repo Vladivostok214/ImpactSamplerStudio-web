@@ -116,6 +116,16 @@ export class WasmEngine {
         wasm.wasmengine_seq_play(this.__wbg_ptr);
     }
     /**
+     * @param {number} pad_idx
+     * @param {number} velocity
+     * @param {number} latency_ms
+     * @returns {number}
+     */
+    seq_record_hit(pad_idx, velocity, latency_ms) {
+        const ret = wasm.wasmengine_seq_record_hit(this.__wbg_ptr, pad_idx, velocity, latency_ms);
+        return ret;
+    }
+    /**
      * @param {string} res_str
      */
     seq_set_resolution(res_str) {

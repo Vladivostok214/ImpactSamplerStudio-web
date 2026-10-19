@@ -17,6 +17,7 @@ export const wasmengine_seq_get_pattern_flat: (a: number) => [number, number];
 export const wasmengine_seq_is_playing: (a: number) => number;
 export const wasmengine_seq_pause: (a: number) => void;
 export const wasmengine_seq_play: (a: number) => void;
+export const wasmengine_seq_record_hit: (a: number, b: number, c: number, d: number) => number;
 export const wasmengine_seq_set_resolution: (a: number, b: number, c: number) => void;
 export const wasmengine_seq_stop: (a: number) => void;
 export const wasmengine_seq_toggle_bank: (a: number) => [number, number];

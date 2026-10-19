@@ -209,6 +209,10 @@ impl WasmEngine {
         self.sequencer.toggle_step(pad_idx, step_idx)
     }
 
+    pub fn seq_record_hit(&mut self, pad_idx: usize, velocity: u8, latency_ms: f32) -> i32 {
+        self.sequencer.record_quantized_hit(pad_idx, velocity, latency_ms)
+    }
+
     pub fn seq_clear_track(&mut self, pad_idx: usize) {
         self.sequencer.clear_track(pad_idx);
     }

@@ -19,6 +19,7 @@ export class WasmEngine {
     seq_is_playing(): boolean;
     seq_pause(): void;
     seq_play(): void;
+    seq_record_hit(pad_idx: number, velocity: number, latency_ms: number): number;
     seq_set_resolution(res_str: string): void;
     seq_stop(): void;
     seq_toggle_bank(): string;
@@ -60,6 +61,7 @@ export interface InitOutput {
     readonly wasmengine_seq_is_playing: (a: number) => number;
     readonly wasmengine_seq_pause: (a: number) => void;
     readonly wasmengine_seq_play: (a: number) => void;
+    readonly wasmengine_seq_record_hit: (a: number, b: number, c: number, d: number) => number;
     readonly wasmengine_seq_set_resolution: (a: number, b: number, c: number) => void;
     readonly wasmengine_seq_stop: (a: number) => void;
     readonly wasmengine_seq_toggle_bank: (a: number) => [number, number];

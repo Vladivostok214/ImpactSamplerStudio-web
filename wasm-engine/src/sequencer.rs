@@ -170,6 +170,7 @@ pub struct StepSequencer {
     pub samples_per_tick: f32,
     pub sample_rate: f32,
     pub need_start_trigger: bool,
+    pub suppress_next_tick: [Option<u32>; NUM_PADS],
     undo_history: Vec<BankPattern>,
 }
 
@@ -194,6 +195,7 @@ impl StepSequencer {
             samples_per_tick: 0.0,
             sample_rate,
             need_start_trigger: false,
+            suppress_next_tick: [None; NUM_PADS],
             undo_history: Vec::with_capacity(16),
         };
         seq.recalculate_samples_per_tick();
@@ -296,6 +298,68 @@ impl StepSequencer {
         }
     }
 
+    /// Registra un golpe en vivo durante la grabación (Overdub) cuantizando al paso más cercano
+    /// con ventana simétrica (50% antes / 50% después del pulso) y compensación de latencia de audio.
+    /// Retorna el índice del paso cuantizado (0..max_steps-1), o -1 si no hubo cambio.
+    pub fn record_quantized_hit(&mut self, pad_idx: usize, velocity: u8, latency_ms: f32) -> i32 {
+        if pad_idx >= NUM_PADS || velocity == 0 {
+            return -1;
+        }
+
+        // 1. Posición continua sub-tick en el instante exacto del evento
+        let frac_tick = if self.samples_per_tick > 0.0 {
+            (self.sample_accum / self.samples_per_tick).clamp(0.0, 0.999)
+        } else {
+            0.0
+        };
+        let raw_tick = self.current_tick as f32 + frac_tick;
+
+        // 2. Compensar la latencia acústica de salida (lo que el usuario escucha vs el reloj del worklet)
+        let ticks_per_ms = (self.bpm * TICKS_PER_BEAT as f32) / 60000.0;
+        let latency_ticks = latency_ms.clamp(0.0, 120.0) * ticks_per_ms;
+        let bar_ticks = TICKS_PER_BAR as f32;
+        let compensated_tick = (raw_tick - latency_ticks + bar_ticks) % bar_ticks;
+
+        // 3. Redondeo simétrico al paso más cercano: floor((tick + ticks_step / 2) / ticks_step) % max_steps
+        let ticks_step_u32 = self.resolution.ticks_per_step();
+        let ticks_step = ticks_step_u32 as f32;
+        let max_steps = self.resolution.steps_per_bar();
+        let quantized_step = (((compensated_tick + (ticks_step * 0.5)) / ticks_step).floor() as usize) % max_steps;
+        let target_tick = (quantized_step as u32 * ticks_step_u32) % TICKS_PER_BAR;
+
+        // 4. Si el golpe fue anticipado y cuantizado hacia adelante (target_tick está justo delante del playhead),
+        // suprimir el redesencadenamiento automático en ese tick inmediato para evitar doble golpe (flam),
+        // ya que el golpe en vivo del usuario acaba de sonar.
+        let forward_dist = (target_tick + TICKS_PER_BAR - self.current_tick) % TICKS_PER_BAR;
+        if forward_dist > 0 && forward_dist <= ticks_step_u32 {
+            self.suppress_next_tick[pad_idx] = Some(target_tick);
+        }
+
+        // 5. Verificar si ya existía el evento en ese tick para solo guardar undo en notas nuevas
+        let already_exists = {
+            let bank = self.get_active_bank();
+            let track = &bank.tracks[pad_idx];
+            let mut found = false;
+            for i in 0..track.count {
+                if track.events[i].tick == target_tick && track.events[i].velocity > 0 {
+                    found = true;
+                    break;
+                }
+            }
+            found
+        };
+
+        if !already_exists {
+            self.save_undo_state();
+        }
+
+        let orig_tick = (compensated_tick.round() as u32) % TICKS_PER_BAR;
+        let bank = self.get_active_bank_mut();
+        bank.tracks[pad_idx].add_or_update(target_tick, orig_tick, velocity);
+
+        quantized_step as i32
+    }
+
     pub fn save_undo_state(&mut self) {
         let current = *self.get_active_bank();
         if self.undo_history.len() >= 16 {
@@ -323,6 +387,7 @@ impl StepSequencer {
             } else {
                 self.current_tick = 0;
                 self.sample_accum = 0.0;
+                self.suppress_next_tick = [None; NUM_PADS];
                 self.update_current_step();
                 self.need_start_trigger = true;
             }
@@ -342,6 +407,7 @@ impl StepSequencer {
         self.current_step = 0;
         self.sample_accum = 0.0;
         self.need_start_trigger = false;
+        self.suppress_next_tick = [None; NUM_PADS];
     }
 
     pub fn toggle_play(&mut self) -> bool {
@@ -403,20 +469,29 @@ impl StepSequencer {
             self.current_tick = (self.current_tick + 1) % TICKS_PER_BAR;
             self.update_current_step();
 
+            let cur_tick = self.current_tick;
+            let mut suppress = self.suppress_next_tick;
             let mut count = 0;
             let mut triggers = [(0u8, 0u8); NUM_PADS];
-            let bank = self.get_active_bank();
-            for pad_idx in 0..NUM_PADS {
-                let track = &bank.tracks[pad_idx];
-                for i in 0..track.count {
-                    if track.events[i].tick == self.current_tick {
-                        let note = DEFAULT_PAD_NOTES[pad_idx];
-                        triggers[count] = (note, track.events[i].velocity);
-                        count += 1;
-                        break;
+            {
+                let bank = self.get_active_bank();
+                for pad_idx in 0..NUM_PADS {
+                    let track = &bank.tracks[pad_idx];
+                    for i in 0..track.count {
+                        if track.events[i].tick == cur_tick {
+                            if suppress[pad_idx] == Some(cur_tick) {
+                                suppress[pad_idx] = None;
+                            } else {
+                                let note = DEFAULT_PAD_NOTES[pad_idx];
+                                triggers[count] = (note, track.events[i].velocity);
+                                count += 1;
+                            }
+                            break;
+                        }
                     }
                 }
             }
+            self.suppress_next_tick = suppress;
 
             if count > 0 {
                 return Some((self.current_step, triggers, count));
