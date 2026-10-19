@@ -210,7 +210,7 @@ export const StudioAssistantAvatar: React.FC<StudioAssistantAvatarProps> = ({
   };
 
   return (
-    <div ref={containerRef}>
+    <div ref={containerRef} className="hidden lg:block">
       {/* Botón Flotante del Avatar (Esquina inferior derecha) */}
       <div className="fixed bottom-12 right-4 z-40 flex items-center gap-3 select-none">
         {/* Burbuja de Saludo Inicial Flotante */}
