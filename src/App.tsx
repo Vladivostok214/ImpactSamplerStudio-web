@@ -1776,7 +1776,7 @@ export const App: React.FC = () => {
       )}
 
       {/* Contenido Principal: Consola Flotante Centrada Ergonómicamente */}
-      <main className="flex-1 p-1 sm:p-1.5 lg:py-3 lg:px-4 flex flex-col justify-center items-center relative z-10 my-auto safe-horizontal">
+      <main className="flex-1 p-1 sm:p-1.5 lg:py-1.5 lg:px-4 flex flex-col justify-center items-center relative z-10 my-auto safe-horizontal">
         <div className="studio-console flex flex-col w-full max-w-6xl my-auto">
           <div className="bg-[#050508] border border-white/[0.12] rounded-xl lg:rounded-2xl lg:shadow-[0_20px_60px_rgba(0,0,0,0.95),0_0_1px_1px_rgba(255,255,255,0.06),inset_0_1px_0_0_rgba(255,255,255,0.1)] flex flex-col overflow-hidden select-none w-full">
             <HardwareSkeleton

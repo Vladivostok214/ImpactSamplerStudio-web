@@ -590,9 +590,9 @@ export const StepSequencer: React.FC<StepSequencerProps> = React.memo(({
     <div ref={seqGridRef} className="w-full flex flex-col bg-[#050507] border-t border-white/[0.08] select-none relative z-40">
       {/* 1. Bahía de Secuenciación Rítmica TR-Style (Visible únicamente en modo SEQ) */}
       {isSeqOpen && (
-        <div className="p-1.5 sm:p-2 lg:p-3.5 flex flex-col gap-1 lg:gap-1.5 animate-in fade-in duration-150">
+        <div className="p-1.5 sm:p-2 lg:px-3.5 lg:py-2 flex flex-col gap-1 lg:gap-1 animate-in fade-in duration-150">
           {/* Cinta Superior de Control del Secuenciador (Kit, Banco, Grilla, Páginas, Cuantización y Edición) */}
-          <div className="flex items-center justify-between pb-1 lg:pb-2 mb-0.5 lg:mb-1 border-b border-white/[0.08] flex-wrap sm:flex-nowrap gap-1.5 lg:gap-2 text-[9px] lg:text-[10px] font-mono select-none">
+          <div className="flex items-center justify-between pb-1 lg:pb-1.5 mb-0.5 border-b border-white/[0.08] flex-wrap sm:flex-nowrap gap-1.5 lg:gap-2 text-[9px] lg:text-[10px] font-mono select-none">
             {/* Izquierda: Kit + Banco A/B */}
             <div className="flex items-center gap-1.5 lg:gap-2 shrink-0">
               {/* Selector de Kit con Menú Desplegable Flotante */}
@@ -967,7 +967,7 @@ export const StepSequencer: React.FC<StepSequencerProps> = React.memo(({
           </div>
 
           {/* 8 Pistas de Percusión con Botones Mecánicos TR-Style */}
-          <div className="flex flex-col gap-[3px] sm:gap-1 lg:gap-1.5 overflow-hidden gpu-contain">
+          <div className="flex flex-col gap-[3px] sm:gap-1 lg:gap-1 overflow-hidden gpu-contain">
             {[0, 1, 2, 3, 4, 5, 6, 7].map((padIdx) => {
               const padName = getPadDisplayName(padIdx);
               const theme = PAD_ROLE_THEMES[padIdx] || PAD_ROLE_THEMES[0];
@@ -1046,7 +1046,7 @@ export const StepSequencer: React.FC<StepSequencerProps> = React.memo(({
                         longPressTimerRef.current = null;
                       }
                     }}
-                    className={`seq-pad-btn w-20 sm:w-24 lg:w-32 h-[22px] sm:h-6 lg:h-8 rounded-md lg:rounded-lg flex items-center justify-between px-1.5 lg:px-2.5 shrink-0 cursor-pointer border font-mono text-[8.5px] lg:text-[10px] font-bold select-none touch-none ${
+                    className={`seq-pad-btn w-20 sm:w-24 lg:w-32 h-[22px] sm:h-6 lg:h-[26px] rounded-md lg:rounded-lg flex items-center justify-between px-1.5 lg:px-2.5 shrink-0 cursor-pointer border font-mono text-[8.5px] lg:text-[10px] font-bold select-none touch-none ${
                       isLearnSelected
                         ? "border-2 border-amber-400 bg-amber-950/40 text-amber-200 shadow-[0_0_18px_rgba(245,158,11,0.85)] ring-2 ring-amber-400/60 animate-pulse"
                         : isMidiLearnActive
@@ -1148,7 +1148,7 @@ export const StepSequencer: React.FC<StepSequencerProps> = React.memo(({
                                 }
                               }
                             }}
-                            className={`seq-step-btn flex-1 h-[22px] sm:h-6 lg:h-8 rounded-[3px] font-mono text-[9px] relative overflow-hidden touch-none ${
+                            className={`seq-step-btn flex-1 h-[22px] sm:h-6 lg:h-[26px] rounded-[3px] font-mono text-[9px] relative overflow-hidden touch-none ${
                               isStepDisabled
                                 ? "opacity-15 bg-[#090a0d] border border-white/[0.04] cursor-not-allowed pointer-events-none"
                                 : isActive

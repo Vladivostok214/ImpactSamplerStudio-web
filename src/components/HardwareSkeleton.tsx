@@ -266,7 +266,7 @@ export const HardwareSkeleton: React.FC<HardwareSkeletonProps> = React.memo(({
   return (
     <div className="flex flex-col w-full">
       {/* 1. Deck Superior: Wheels, Faders, OLED + Knobs, Performance Bay (Horizontal en Mobile Landscape & Desktop; se repliega en mobile durante modo SEQ) */}
-      <div className={`${hideKeyboard ? "hidden lg:flex" : "flex"} p-2 sm:p-2.5 lg:p-4 bg-gradient-to-b from-[#111216] via-[#0d0e12] to-[#08080a] border-b border-white/[0.08] flex-row flex-wrap sm:flex-nowrap gap-2 lg:gap-4 items-stretch w-full gpu-contain`}>
+      <div className={`${hideKeyboard ? "hidden lg:flex lg:py-2.5 lg:px-4" : "flex lg:p-4"} p-2 sm:p-2.5 bg-gradient-to-b from-[#111216] via-[#0d0e12] to-[#08080a] border-b border-white/[0.08] flex-row flex-wrap sm:flex-nowrap gap-2 lg:gap-4 items-stretch w-full gpu-contain`}>
         {/* Ruedas Pitch & Mod */}
         <div className="flex items-center gap-1.5 lg:gap-2 pr-2 lg:pr-4 border-r border-white/[0.08] shrink-0">
           {/* Pitch Wheel */}
