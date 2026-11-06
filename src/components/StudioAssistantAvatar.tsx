@@ -351,22 +351,22 @@ export const StudioAssistantAvatar: React.FC<StudioAssistantAvatarProps> = ({
                       <div className="flex items-center gap-1.5">
                         <PlugZap className="w-3.5 h-3.5 text-amber-400" />
                         <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-amber-300">
-                          Acceso USB Restringido
+                          Controlador MIDI
                         </span>
                       </div>
                       <h4 className="text-xs font-semibold text-white mt-0.5 tracking-tight">
-                        Conexión de Teclado o Controlador
+                        Conectar Hardware USB
                       </h4>
                     </div>
                   </div>
 
-                  {/* Mensaje Asistente */}
-                  <div className="text-[11.5px] text-zinc-300 space-y-2 font-sans leading-relaxed px-0.5">
+                  {/* Mensaje Asistente Simplificado y Universal */}
+                  <div className="text-[11.5px] text-zinc-300 space-y-1.5 font-sans leading-relaxed px-0.5">
                     <p>
-                      ¡Hola! Detecto que tu navegador actual (<span className="text-white font-medium">Safari</span> o modo restringido) no permite la conexión USB directa a instrumentos por políticas de seguridad del sistema.
+                      Tu navegador actual no tiene habilitado el acceso a dispositivos MIDI por USB.
                     </p>
-                    <p>
-                      Para conectar y tocar con tu teclado físico con latencia ultra-baja, te sugiero abrir esta sesión en <strong className="text-emerald-400 font-semibold">Google Chrome</strong>, <strong className="text-emerald-400 font-semibold">Brave</strong> o <strong className="text-emerald-400 font-semibold">Edge</strong>.
+                    <p className="text-zinc-400 text-[11px]">
+                      Para tocar con tu controlador físico, abre este estudio en un navegador compatible como <strong className="text-emerald-400 font-semibold">Google Chrome</strong>, <strong className="text-emerald-400 font-semibold">Brave</strong> o <strong className="text-emerald-400 font-semibold">Edge</strong>.
                     </p>
                   </div>
 
@@ -399,9 +399,9 @@ export const StudioAssistantAvatar: React.FC<StudioAssistantAvatarProps> = ({
                   <div className="mt-3 p-2.5 rounded-xl bg-black/60 border border-white/10 font-mono text-[10.5px] text-zinc-400 flex items-start gap-2.5">
                     <Keyboard className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
                     <div>
-                      <span className="text-zinc-200 font-semibold">¿Quieres tocar aquí mismo?</span>
+                      <span className="text-zinc-200 font-semibold">Tocar con teclado de computadora:</span>
                       <p className="text-[10px] text-zinc-400 mt-0.5 leading-snug">
-                        ¡Todo funciona! Usa las teclas de tu laptop: <span className="text-emerald-300 font-bold">A-L</span> para notas, <span className="text-emerald-300 font-bold">1-8</span> para pads de batería y <span className="text-emerald-300 font-bold">Z/X</span> para octavas.
+                        ¡Todo suena aquí mismo! Usa <span className="text-emerald-300 font-bold">A-L</span> para notas, <span className="text-emerald-300 font-bold">1-8</span> para batería y <span className="text-emerald-300 font-bold">Z/X</span> para octavas.
                       </p>
                     </div>
                   </div>
