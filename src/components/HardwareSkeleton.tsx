@@ -5,6 +5,7 @@ import { ArpStateInfo } from "../types/arpeggiator";
 import { PerformanceBay } from "./PerformanceBay";
 import { QWERTY_BASE_NOTE, QWERTY_NOTE_OFFSETS } from "../hooks/useQwertyKeyboard";
 import { MidiLearnTarget, MidiLearnMapping } from "../types/midiLearn";
+import { setVisualKeyActive } from "../utils/visualKeys";
 
 interface HardwareSkeletonProps {
   activeNotes?: Set<number>;
@@ -158,6 +159,53 @@ export const HardwareSkeleton: React.FC<HardwareSkeletonProps> = React.memo(({
 
     return list;
   }, [keyRange]);
+
+  // Gestor Multitouch O(1) por pointerId para 0ms de latencia visual en acordes móviles y glissandos
+  const activePointersRef = React.useRef<Map<number, number>>(new Map());
+
+  const releasePointerNote = React.useCallback(
+    (pointerId: number) => {
+      const prevNote = activePointersRef.current.get(pointerId);
+      if (prevNote === undefined) return;
+      activePointersRef.current.delete(pointerId);
+
+      // Si otro dedo sigue presionando la misma nota simultáneamente, mantenerla activa
+      let stillHeld = false;
+      activePointersRef.current.forEach((n) => {
+        if (n === prevNote) stillHeld = true;
+      });
+      if (!stillHeld) {
+        setVisualKeyActive(prevNote, false);
+        onReleaseNote(prevNote);
+      }
+    },
+    [onReleaseNote]
+  );
+
+  React.useEffect(() => {
+    const handleGlobalUp = (ev: PointerEvent) => {
+      if (activePointersRef.current.has(ev.pointerId)) {
+        releasePointerNote(ev.pointerId);
+      }
+    };
+    const handleGlobalBlur = () => {
+      if (activePointersRef.current.size === 0) return;
+      const notesToRelease = new Set<number>(activePointersRef.current.values());
+      activePointersRef.current.clear();
+      notesToRelease.forEach((note) => {
+        setVisualKeyActive(note, false);
+        onReleaseNote(note);
+      });
+    };
+    window.addEventListener("pointerup", handleGlobalUp);
+    window.addEventListener("pointercancel", handleGlobalUp);
+    window.addEventListener("blur", handleGlobalBlur);
+    return () => {
+      window.removeEventListener("pointerup", handleGlobalUp);
+      window.removeEventListener("pointercancel", handleGlobalUp);
+      window.removeEventListener("blur", handleGlobalBlur);
+    };
+  }, [releasePointerNote, onReleaseNote]);
 
   // Drag handlers para Faders
   const handleFaderPointerDown = (index: number, e: React.PointerEvent<HTMLDivElement>) => {
@@ -573,12 +621,69 @@ export const HardwareSkeleton: React.FC<HardwareSkeletonProps> = React.memo(({
             <div className="w-1.5 sm:w-3 bg-gradient-to-r from-[#0c0d10] to-[#060608] border-r border-black/90 shrink-0 z-30" />
             <div
               className="relative flex-1 h-24 sm:h-28 lg:h-44 flex overflow-hidden select-none touch-none bg-black"
-              onPointerLeave={() => {
-                document.querySelectorAll<HTMLElement>('.piano-key-active').forEach((el) => {
-                  el.classList.remove('piano-key-active');
-                  const note = Number(el.getAttribute('data-piano-note'));
-                  if (!isNaN(note)) onReleaseNote(note);
-                });
+              onContextMenu={(e) => e.preventDefault()}
+              onPointerDown={(e) => {
+                if (e.pointerType === "mouse" && e.button !== 0) return;
+                const keyEl = (e.target as HTMLElement).closest<HTMLElement>("[data-piano-note]");
+                if (!keyEl || keyEl.getAttribute("data-out-of-range") === "true") return;
+
+                const note = Number(keyEl.getAttribute("data-piano-note"));
+                if (isNaN(note)) return;
+
+                const isBlack = keyEl.getAttribute("data-black") === "true";
+                activePointersRef.current.set(e.pointerId, note);
+                keyEl.classList.add("piano-key-active");
+                onTriggerNote(note, isBlack ? 110 : 100);
+              }}
+              onPointerMove={(e) => {
+                if (!activePointersRef.current.has(e.pointerId)) return;
+                if (e.pointerType === "mouse" && e.buttons !== 1) {
+                  releasePointerNote(e.pointerId);
+                  return;
+                }
+
+                const el = document.elementFromPoint(e.clientX, e.clientY);
+                const keyEl = el?.closest<HTMLElement>("[data-piano-note]");
+                if (!keyEl || keyEl.getAttribute("data-out-of-range") === "true") {
+                  releasePointerNote(e.pointerId);
+                  return;
+                }
+
+                const nextNote = Number(keyEl.getAttribute("data-piano-note"));
+                if (isNaN(nextNote)) return;
+
+                const prevNote = activePointersRef.current.get(e.pointerId);
+                if (prevNote === nextNote) return;
+
+                // Desactivar nota anterior de este dedo (si ningún otro dedo la sostiene)
+                if (prevNote !== undefined) {
+                  activePointersRef.current.delete(e.pointerId);
+                  let stillHeld = false;
+                  activePointersRef.current.forEach((n) => {
+                    if (n === prevNote) stillHeld = true;
+                  });
+                  if (!stillHeld) {
+                    setVisualKeyActive(prevNote, false);
+                    onReleaseNote(prevNote);
+                  }
+                }
+
+                // Activar nueva nota bajo este dedo
+                const isBlack = keyEl.getAttribute("data-black") === "true";
+                activePointersRef.current.set(e.pointerId, nextNote);
+                keyEl.classList.add("piano-key-active");
+                onTriggerNote(nextNote, isBlack ? 110 : 100);
+              }}
+              onPointerUp={(e) => {
+                releasePointerNote(e.pointerId);
+              }}
+              onPointerCancel={(e) => {
+                releasePointerNote(e.pointerId);
+              }}
+              onPointerLeave={(e) => {
+                if (e.pointerType === "mouse") {
+                  releasePointerNote(e.pointerId);
+                }
               }}
             >
               {keys.map((k) => {
@@ -592,41 +697,8 @@ export const HardwareSkeleton: React.FC<HardwareSkeletonProps> = React.memo(({
                     <div
                       key={k.note}
                       data-piano-note={k.note}
-                      onPointerDown={(e) => {
-                        if (k.isOutOfRange) return;
-                        e.stopPropagation();
-                        e.currentTarget.classList.add("piano-key-active");
-                        try {
-                          e.currentTarget.releasePointerCapture(e.pointerId);
-                        } catch {}
-                        onTriggerNote(k.note, 110);
-                      }}
-                      onPointerUp={(e) => {
-                        if (k.isOutOfRange) return;
-                        e.stopPropagation();
-                        e.currentTarget.classList.remove("piano-key-active");
-                        onReleaseNote(k.note);
-                      }}
-                      onPointerCancel={(e) => {
-                        if (k.isOutOfRange) return;
-                        e.stopPropagation();
-                        e.currentTarget.classList.remove("piano-key-active");
-                        onReleaseNote(k.note);
-                      }}
-                      onPointerEnter={(e) => {
-                        if (k.isOutOfRange) return;
-                        if (e.buttons === 1 || e.pressure > 0) {
-                          e.currentTarget.classList.add("piano-key-active");
-                          onTriggerNote(k.note, 110);
-                        }
-                      }}
-                      onPointerLeave={(e) => {
-                        if (k.isOutOfRange) return;
-                        if (e.buttons === 1 || e.pressure > 0) {
-                          e.currentTarget.classList.remove("piano-key-active");
-                          onReleaseNote(k.note);
-                        }
-                      }}
+                      data-black="true"
+                      data-out-of-range={k.isOutOfRange ? "true" : undefined}
                       className={`w-[13px] sm:w-[16px] lg:w-[22px] h-[56px] sm:h-[66px] lg:h-[106px] -mx-[6.5px] sm:-mx-[8px] lg:-mx-[11px] z-20 rounded-b-[2px] relative touch-none piano-key-black ${
                         k.isOutOfRange
                           ? "bg-zinc-950 opacity-20 cursor-not-allowed piano-key-out-of-range"
@@ -647,38 +719,8 @@ export const HardwareSkeleton: React.FC<HardwareSkeletonProps> = React.memo(({
                   <div
                     key={k.note}
                     data-piano-note={k.note}
-                    onPointerDown={(e) => {
-                      if (k.isOutOfRange) return;
-                      e.currentTarget.classList.add("piano-key-active");
-                      try {
-                        e.currentTarget.releasePointerCapture(e.pointerId);
-                      } catch {}
-                      onTriggerNote(k.note, 100);
-                    }}
-                    onPointerUp={(e) => {
-                      if (k.isOutOfRange) return;
-                      e.currentTarget.classList.remove("piano-key-active");
-                      onReleaseNote(k.note);
-                    }}
-                    onPointerCancel={(e) => {
-                      if (k.isOutOfRange) return;
-                      e.currentTarget.classList.remove("piano-key-active");
-                      onReleaseNote(k.note);
-                    }}
-                    onPointerEnter={(e) => {
-                      if (k.isOutOfRange) return;
-                      if (e.buttons === 1 || e.pressure > 0) {
-                        e.currentTarget.classList.add("piano-key-active");
-                        onTriggerNote(k.note, 100);
-                      }
-                    }}
-                    onPointerLeave={(e) => {
-                      if (k.isOutOfRange) return;
-                      if (e.buttons === 1 || e.pressure > 0) {
-                        e.currentTarget.classList.remove("piano-key-active");
-                        onReleaseNote(k.note);
-                      }
-                    }}
+                    data-black="false"
+                    data-out-of-range={k.isOutOfRange ? "true" : undefined}
                     className={`flex-1 min-w-0 h-full rounded-b-[4px] relative z-10 touch-none piano-key-white ${
                       k.isOutOfRange
                         ? "bg-zinc-900/60 opacity-20 cursor-not-allowed piano-key-out-of-range"

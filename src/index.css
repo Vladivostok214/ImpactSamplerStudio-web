@@ -82,7 +82,7 @@ html, body, #root {
 }
 
 .piano-key-black {
-  background: linear-gradient(to bottom, #18191c, #121316, #08080a);
+  background-color: #121316;
   border-left: 1px solid #060608;
   border-right: 1px solid #060608;
   border-bottom: 4px solid #020203;
@@ -98,14 +98,22 @@ html, body, #root {
 
 .piano-key-black.piano-key-active .piano-key-label {
   color: #083344 !important;
-  font-weight: 900 !important;
 }
 
 .piano-key-white {
-  background: linear-gradient(to bottom, #eef1f5, #fafbfc, #dce2ea);
+  background-color: #f3f5f8;
   border-right: 1px solid #9da4b0;
-  box-shadow: 1px 0 0 #dce2ea;
   cursor: pointer;
+}
+
+@media (min-width: 1024px) {
+  .piano-key-black {
+    background: linear-gradient(to bottom, #18191c, #121316, #08080a);
+  }
+  .piano-key-white {
+    background: linear-gradient(to bottom, #eef1f5, #fafbfc, #dce2ea);
+    box-shadow: 1px 0 0 #dce2ea;
+  }
 }
 
 .piano-key-white.piano-key-active {
@@ -116,12 +124,10 @@ html, body, #root {
 
 .piano-key-white.piano-key-active .piano-key-label {
   color: black !important;
-  font-weight: 900 !important;
 }
 
 .piano-key-white.piano-key-active .piano-key-octave {
   color: black !important;
-  font-weight: 900 !important;
 }
 
 /* =========================================================================
