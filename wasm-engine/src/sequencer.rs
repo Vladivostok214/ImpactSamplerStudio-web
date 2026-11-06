@@ -171,6 +171,7 @@ pub struct StepSequencer {
     pub sample_rate: f32,
     pub need_start_trigger: bool,
     pub suppress_next_tick: [Option<u32>; NUM_PADS],
+    pub pad_notes: [u8; NUM_PADS],
     undo_history: Vec<BankPattern>,
 }
 
@@ -196,10 +197,25 @@ impl StepSequencer {
             sample_rate,
             need_start_trigger: false,
             suppress_next_tick: [None; NUM_PADS],
+            pad_notes: DEFAULT_PAD_NOTES,
             undo_history: Vec::with_capacity(16),
         };
         seq.recalculate_samples_per_tick();
         seq
+    }
+
+    pub fn set_pad_note(&mut self, pad_idx: usize, note: u8) {
+        if pad_idx < NUM_PADS {
+            self.pad_notes[pad_idx] = note.min(127);
+        }
+    }
+
+    pub fn get_pad_note(&self, pad_idx: usize) -> u8 {
+        if pad_idx < NUM_PADS {
+            self.pad_notes[pad_idx]
+        } else {
+            36
+        }
     }
 
     #[inline]
@@ -292,6 +308,43 @@ impl StepSequencer {
             } else {
                 bank.tracks[pad_idx].add_or_update(target_tick, target_tick, 127);
                 127
+            }
+        } else {
+            0
+        }
+    }
+
+    pub fn set_step(&mut self, pad_idx: usize, step_idx: usize, active: bool, save_undo: bool) -> u8 {
+        if pad_idx < NUM_PADS && step_idx < self.resolution.steps_per_bar() {
+            let target_tick = (step_idx as u32 * self.resolution.ticks_per_step()) % TICKS_PER_BAR;
+            let already_active = {
+                let bank = self.get_active_bank();
+                let track = &bank.tracks[pad_idx];
+                let mut found = false;
+                for i in 0..track.count {
+                    if track.events[i].tick == target_tick && track.events[i].velocity > 0 {
+                        found = true;
+                        break;
+                    }
+                }
+                found
+            };
+
+            if already_active == active {
+                return if active { 127 } else { 0 };
+            }
+
+            if save_undo {
+                self.save_undo_state();
+            }
+
+            let bank = self.get_active_bank_mut();
+            if active {
+                bank.tracks[pad_idx].add_or_update(target_tick, target_tick, 127);
+                127
+            } else {
+                bank.tracks[pad_idx].remove_at_tick(target_tick);
+                0
             }
         } else {
             0
@@ -445,12 +498,13 @@ impl StepSequencer {
 
             let mut count = 0;
             let mut triggers = [(0usize, 0u8, 0u8); NUM_PADS];
+            let pad_notes = self.pad_notes;
             let bank = self.get_active_bank();
             for pad_idx in 0..NUM_PADS {
                 let track = &bank.tracks[pad_idx];
                 for i in 0..track.count {
                     if track.events[i].tick == 0 {
-                        let note = DEFAULT_PAD_NOTES[pad_idx];
+                        let note = pad_notes[pad_idx];
                         triggers[count] = (pad_idx, note, track.events[i].velocity);
                         count += 1;
                         break;
@@ -470,6 +524,7 @@ impl StepSequencer {
             self.update_current_step();
 
             let cur_tick = self.current_tick;
+            let pad_notes = self.pad_notes;
             let mut suppress = self.suppress_next_tick;
             let mut count = 0;
             let mut triggers = [(0usize, 0u8, 0u8); NUM_PADS];
@@ -482,7 +537,7 @@ impl StepSequencer {
                             if suppress[pad_idx] == Some(cur_tick) {
                                 suppress[pad_idx] = None;
                             } else {
-                                let note = DEFAULT_PAD_NOTES[pad_idx];
+                                let note = pad_notes[pad_idx];
                                 triggers[count] = (pad_idx, note, track.events[i].velocity);
                                 count += 1;
                             }

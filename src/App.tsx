@@ -394,6 +394,19 @@ export const App: React.FC = () => {
       return 'melodic';
     };
 
+    // Si la nota MIDI física corresponde a uno de los 8 pads (en modo SEQ o Canal 10), resolver su padIdx
+    webMidi.resolvePadIndex = (note: number, channel: number) => {
+      if (channel === 9 || workstationModeRef.current === 'seq') {
+        const { mapping } = learnStateRef.current;
+        for (let pIdx = 0; pIdx < 8; pIdx++) {
+          if (mapping.pads[pIdx] === note) {
+            return pIdx;
+          }
+        }
+      }
+      return undefined;
+    };
+
     // 1. Inicializar Web MIDI API
     webMidi.requestAccess();
 
@@ -631,6 +644,7 @@ export const App: React.FC = () => {
     return () => {
       webMidi.shouldInterceptNote = null;
       webMidi.resolveNoteTarget = null;
+      webMidi.resolvePadIndex = null;
       unsubAccess();
       unsubDevices();
       unsubNotes();
@@ -1426,27 +1440,35 @@ export const App: React.FC = () => {
       audioBridge.syncArpState(arpState, bpm);
       setIsAudioStarted(true);
     }
+    if (isPad) {
+      const defaultDrumNotes = [36, 38, 42, 46, 41, 45, 49, 51];
+      const padIdx = defaultDrumNotes.indexOf(note);
+      if (padIdx >= 0) {
+        const soundNote = audioBridge.getPadNotes()[padIdx] ?? note;
+        audioBridge.noteOn(soundNote, velocity, 0, 'drum', padIdx);
+        setVisualPadActive(padIdx, true);
+        return;
+      }
+    }
     const target = isPad || currentSoundfont.filename.toLowerCase().includes('rx7') ? 'drum' : 'melodic';
     audioBridge.noteOn(note, velocity, 0, target);
-    if (isPad) {
-      const drumNotes = [36, 38, 42, 46, 41, 45, 49, 51];
-      const padIdx = drumNotes.indexOf(note);
-      if (padIdx >= 0) setVisualPadActive(padIdx, true);
-    } else {
-      setVisualKeyActive(note, true);
-    }
+    setVisualKeyActive(note, true);
   };
 
   const handleQwertyNoteOff = (note: number, isPad?: boolean) => {
+    if (isPad) {
+      const defaultDrumNotes = [36, 38, 42, 46, 41, 45, 49, 51];
+      const padIdx = defaultDrumNotes.indexOf(note);
+      if (padIdx >= 0) {
+        const soundNote = audioBridge.getPadNotes()[padIdx] ?? note;
+        audioBridge.noteOff(soundNote, 0, 'drum', padIdx);
+        setVisualPadActive(padIdx, false);
+        return;
+      }
+    }
     const target = isPad || currentSoundfont?.filename.toLowerCase().includes('rx7') ? 'drum' : 'melodic';
     audioBridge.noteOff(note, 0, target);
-    if (isPad) {
-      const drumNotes = [36, 38, 42, 46, 41, 45, 49, 51];
-      const padIdx = drumNotes.indexOf(note);
-      if (padIdx >= 0) setVisualPadActive(padIdx, false);
-    } else {
-      setVisualKeyActive(note, false);
-    }
+    setVisualKeyActive(note, false);
   };
 
   const { octaveOffset } = useQwertyKeyboard({
@@ -1528,6 +1550,12 @@ export const App: React.FC = () => {
     setSequencerState((prev) => ({ ...prev, pattern: updatedPattern }));
   };
 
+  const handleSequencerSetStep = (padIdx: number, stepIdx: number, active: boolean, saveUndo: boolean = true) => {
+    audioBridge.seqSetStep(padIdx, stepIdx, active, saveUndo);
+    const updatedPattern = audioBridge.seqGetPattern();
+    setSequencerState((prev) => ({ ...prev, pattern: updatedPattern }));
+  };
+
   const handleSequencerClearTrack = (padIdx: number) => {
     audioBridge.seqClearTrack(padIdx);
     const updatedPattern = audioBridge.seqGetPattern();
@@ -1559,8 +1587,7 @@ export const App: React.FC = () => {
   };
 
   const handleSequencerTriggerPad = (padIdx: number) => {
-    const drumNotes = [36, 38, 42, 46, 41, 45, 49, 51];
-    const note = midiLearnMapping.pads[padIdx] ?? drumNotes[padIdx] ?? 36;
+    const soundNote = audioBridge.getPadNotes()[padIdx] ?? 36;
     setVisualPadActive(padIdx, true);
     setTimeout(() => {
       setVisualPadActive(padIdx, false);
@@ -1569,8 +1596,8 @@ export const App: React.FC = () => {
       audioBridge.resumeAudio();
       setIsAudioStarted(true);
     }
-    audioBridge.noteOn(note, 127, 0, 'drum');
-    setTimeout(() => audioBridge.noteOff(note, 0, 'drum'), 110);
+    audioBridge.noteOn(soundNote, 127, 0, 'drum', padIdx);
+    setTimeout(() => audioBridge.noteOff(soundNote, 0, 'drum', padIdx), 110);
   };
 
   const tapTimesRef = useRef<number[]>([]);
@@ -1801,6 +1828,7 @@ export const App: React.FC = () => {
                 onAdjustBpm={handleChangeBpm}
                 onTapTempo={handleTapTempo}
                 onToggleStep={handleSequencerToggleStep}
+                onSetStep={handleSequencerSetStep}
                 onClearTrack={handleSequencerClearTrack}
                 onClearAll={handleSequencerClearAll}
                 onChangeResolution={handleSequencerChangeResolution}
@@ -1808,10 +1836,6 @@ export const App: React.FC = () => {
                 onUndo={handleSequencerUndo}
                 isClickEnabled={isMetronomeActive}
                 onToggleClick={handleToggleMetronome}
-                quantizeMode={sequencerState.quantizeMode}
-                quantizeStrength={sequencerState.quantizeStrength}
-                onSetQuantizeMode={(mode) => setSequencerState((prev) => ({ ...prev, quantizeMode: mode }))}
-                onSetQuantizeStrength={(str) => setSequencerState((prev) => ({ ...prev, quantizeStrength: str }))}
               />
             </div>
           </div>

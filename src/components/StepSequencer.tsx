@@ -1,16 +1,16 @@
 import React, { useState, useRef, useEffect } from "react";
 import {
   ChevronDown,
+  ChevronRight,
   Check,
   RotateCcw,
   Eraser,
   Trash2,
-  Eye,
+  Music,
 } from "lucide-react";
 import {
   PadSlotInfo,
   PadEngineMode,
-  QuantizeMode,
   SequencerStateInfo,
   StepResolution,
 } from "../types/sampler";
@@ -21,6 +21,149 @@ import {
   getActionMappingLabel,
 } from "../types/midiLearn";
 import { audioBridge } from "../audio/WebAudioBridge";
+
+export interface Sf2DrumSample {
+  note: number;
+  name: string;
+}
+
+export interface Sf2DrumCategory {
+  id: string;
+  name: string;
+  samples: Sf2DrumSample[];
+}
+
+export const SF2_DRUM_CATEGORIES: Sf2DrumCategory[] = [
+  {
+    id: "bombo",
+    name: "BOMBO",
+    samples: [
+      { note: 36, name: "Bass Kick 1" },
+      { note: 35, name: "Acoustic Kick" },
+      { note: 10, name: "Bass Kick 2" },
+      { note: 11, name: "Bass Kick 3" },
+      { note: 12, name: "Bass Kick 4" },
+      { note: 13, name: "Bass Kick 5" },
+      { note: 14, name: "Bass Kick 6" },
+      { note: 15, name: "Bass Kick 7" },
+      { note: 16, name: "Bass Kick 8" },
+      { note: 25, name: "Reverse Kick" },
+    ],
+  },
+  {
+    id: "caja",
+    name: "CAJA",
+    samples: [
+      { note: 38, name: "Acoustic Snare" },
+      { note: 40, name: "Electric Snare" },
+      { note: 37, name: "Sidestick / Rim" },
+      { note: 0, name: "Snare 1" },
+      { note: 1, name: "Snare 2" },
+      { note: 2, name: "Snare 3" },
+      { note: 3, name: "Snare 4" },
+      { note: 4, name: "Snare 5" },
+      { note: 5, name: "Snare 6" },
+      { note: 6, name: "Snare 7" },
+      { note: 7, name: "Snare 8" },
+      { note: 8, name: "Snare 9" },
+      { note: 32, name: "Reverse Snare" },
+    ],
+  },
+  {
+    id: "hihat",
+    name: "HI-HAT",
+    samples: [
+      { note: 42, name: "Closed Hat" },
+      { note: 46, name: "Open Hat" },
+      { note: 44, name: "Pedal Hat" },
+      { note: 24, name: "Pedal Hat 2" },
+    ],
+  },
+  {
+    id: "platillo",
+    name: "PLATILLO",
+    samples: [
+      { note: 49, name: "Crash Cymbal" },
+      { note: 51, name: "Ride Cymbal" },
+      { note: 53, name: "Ride Bell" },
+      { note: 52, name: "Chinese Cymbal" },
+      { note: 29, name: "FM Synth Crash" },
+      { note: 26, name: "Reverse Cymbal" },
+      { note: 27, name: "Reverse Bell Ride" },
+    ],
+  },
+  {
+    id: "toms",
+    name: "TOMS",
+    samples: [
+      { note: 50, name: "High Tom 1" },
+      { note: 48, name: "High-Mid Tom 1" },
+      { note: 47, name: "Low-Mid Tom 1" },
+      { note: 45, name: "Low Tom 1" },
+      { note: 17, name: "Heavy Tom 1" },
+      { note: 19, name: "Heavy Tom 2" },
+      { note: 22, name: "High Tom 2" },
+      { note: 20, name: "High-Mid Tom 2" },
+      { note: 18, name: "Low-Mid Tom 2" },
+      { note: 21, name: "Low Tom 2" },
+      { note: 23, name: "High Tom 3" },
+      { note: 43, name: "High-Mid Tom 3" },
+      { note: 41, name: "Low-Mid Tom 3" },
+      { note: 73, name: "High Electro Tom" },
+      { note: 81, name: "High-Mid Electro Tom" },
+      { note: 80, name: "Low-Mid Electro Tom" },
+      { note: 74, name: "Low Electro Tom" },
+      { note: 33, name: "Reverse Tom" },
+      { note: 28, name: "Reverse Electro Tom" },
+    ],
+  },
+  {
+    id: "percusion",
+    name: "PERCUSION",
+    samples: [
+      { note: 39, name: "Handclap" },
+      { note: 56, name: "Cowbell" },
+      { note: 54, name: "Tambourine" },
+      { note: 69, name: "Cabasa" },
+      { note: 60, name: "Hi Bongo" },
+      { note: 61, name: "Low Bongo" },
+      { note: 62, name: "Mute Conga" },
+      { note: 63, name: "Conga" },
+      { note: 64, name: "Low Conga" },
+      { note: 65, name: "Hi Timbale" },
+      { note: 66, name: "Low Timbale" },
+      { note: 67, name: "Hi Agogo" },
+      { note: 68, name: "Low Agogo" },
+      { note: 75, name: "Claves" },
+      { note: 79, name: "Cuica" },
+      { note: 85, name: "Castanet" },
+      { note: 58, name: "Vibraslap" },
+      { note: 71, name: "Short Whistle" },
+      { note: 72, name: "Long Whistle" },
+      { note: 84, name: "Belltree" },
+    ],
+  },
+  {
+    id: "fx",
+    name: "FX Y VOCES",
+    samples: [
+      { note: 59, name: "Get Funky!" },
+      { note: 77, name: "Hey!" },
+      { note: 76, name: "Ha!" },
+      { note: 88, name: "Ow!" },
+      { note: 34, name: "Bom" },
+      { note: 87, name: "Gunshot" },
+      { note: 86, name: "Glass Shatter" },
+      { note: 55, name: "Camera Shutter" },
+      { note: 57, name: "Shutter" },
+      { note: 9, name: "Timpani" },
+      { note: 30, name: "FM Synth Drum 1" },
+      { note: 31, name: "FM Synth Drum 2" },
+      { note: 82, name: "FM 1" },
+      { note: 83, name: "FM 2" },
+    ],
+  },
+];
 
 interface StepSequencerProps {
   viewMode?: "keys" | "seq";
@@ -39,6 +182,7 @@ interface StepSequencerProps {
   onAdjustBpm?: (delta: number) => void;
   onTapTempo?: () => void;
   onToggleStep: (padIdx: number, stepIdx: number) => void;
+  onSetStep?: (padIdx: number, stepIdx: number, active: boolean, saveUndo?: boolean) => void;
   onClearTrack?: (padIdx: number) => void;
   onClearAll?: () => void;
   onChangeResolution?: (res: StepResolution) => void;
@@ -46,17 +190,10 @@ interface StepSequencerProps {
   onUndo?: () => void;
   isClickEnabled?: boolean;
   onToggleClick?: () => void;
-  isVisualMetronomeVisible?: boolean;
-  onToggleVisualMetronome?: () => void;
   isMidiLearnActive?: boolean;
   selectedLearnTarget?: MidiLearnTarget | null;
   onSelectLearnTarget?: (target: MidiLearnTarget) => void;
   midiLearnMapping?: MidiLearnMapping;
-  quantizeMode?: QuantizeMode;
-  quantizeStrength?: number;
-  onSetQuantizeMode?: (mode: QuantizeMode) => void;
-  onSetQuantizeStrength?: (strength: number) => void;
-  onRequantize?: () => void;
 }
 
 const DEFAULT_DRUM_NAMES = [
@@ -158,6 +295,7 @@ export const StepSequencer: React.FC<StepSequencerProps> = React.memo(({
   onAdjustBpm,
   onTapTempo,
   onToggleStep,
+  onSetStep,
   onClearTrack,
   onClearAll,
   onChangeResolution,
@@ -165,17 +303,10 @@ export const StepSequencer: React.FC<StepSequencerProps> = React.memo(({
   onUndo,
   isClickEnabled = false,
   onToggleClick,
-  isVisualMetronomeVisible: propVisualMetronomeVisible,
-  onToggleVisualMetronome,
   isMidiLearnActive = false,
   selectedLearnTarget = null,
   onSelectLearnTarget,
   midiLearnMapping,
-  quantizeMode: propQuantizeMode,
-  quantizeStrength: propQuantizeStrength,
-  onSetQuantizeMode,
-  onSetQuantizeStrength,
-  onRequantize,
 }) => {
   const [selectedTrack, setSelectedTrack] = useState<number>(0);
   const [activePage, setActivePage] = useState<number>(0); // 0 = 1-16, 1 = 17-32
@@ -183,32 +314,44 @@ export const StepSequencer: React.FC<StepSequencerProps> = React.memo(({
   // Menús desplegables de la cinta superior
   const [isKitMenuOpen, setIsKitMenuOpen] = useState<boolean>(false);
   const [isGridMenuOpen, setIsGridMenuOpen] = useState<boolean>(false);
-  const [isQMenuOpen, setIsQMenuOpen] = useState<boolean>(false);
 
-  // Estados locales de quantize, kit y metrónomo visual si no se pasan por props
+  // Estado local de kit si no se pasa por props
   const [internalPadEngineMode, setInternalPadEngineMode] = useState<PadEngineMode>("drumKitSf2");
   const padEngineMode = propPadEngineMode || internalPadEngineMode;
-
-  const [internalQuantizeMode, setInternalQuantizeMode] = useState<QuantizeMode>(
-    sequencerState.quantizeMode || "sixteenth"
-  );
-  const quantizeMode = propQuantizeMode || internalQuantizeMode;
-
-  const [internalQuantizeStrength, setInternalQuantizeStrength] = useState<number>(
-    sequencerState.quantizeStrength ?? 1
-  );
-  const quantizeStrength = propQuantizeStrength ?? internalQuantizeStrength;
-
-  const [internalVisualMetronome, setInternalVisualMetronome] = useState<boolean>(false);
-  const isVisualMetronomeVisible = propVisualMetronomeVisible ?? internalVisualMetronome;
 
   // Estado para edición directa de BPM con teclado
   const [isEditingBpm, setIsEditingBpm] = useState<boolean>(false);
   const [bpmInput, setBpmInput] = useState<string>(Math.round(bpm).toString());
 
+  // Menú contextual de Pads (Clic derecho en PC / Pulsación larga en Móvil) y sonidos SF2 por Pad
+  const [contextMenu, setContextMenu] = useState<{
+    padIdx: number;
+    x: number;
+    y: number;
+  } | null>(null);
+  const contextMenuRef = useRef<HTMLDivElement>(null);
+  const [isSf2MenuOpen, setIsSf2MenuOpen] = useState<boolean>(false);
+  const [activeSf2Category, setActiveSf2Category] = useState<string | null>(null);
+  const [drumNotes, setDrumNotes] = useState<number[]>(() => audioBridge.getPadNotes());
+  const [customDrumNames, setCustomDrumNames] = useState<Record<number, string>>({});
+  const longPressTimerRef = useRef<number | null>(null);
+  const longPressTriggeredRef = useRef<boolean>(false);
+
+  // Estado de trazo continuo (Paint / Erase drag) sobre los pasos de la grilla
+  const stepDragRef = useRef<{
+    active: boolean;
+    mode: "paint" | "erase";
+    undoSaved: boolean;
+    lastKey: string;
+  }>({
+    active: false,
+    mode: "paint",
+    undoSaved: false,
+    lastKey: "",
+  });
+
   const kitMenuRef = useRef<HTMLDivElement>(null);
   const gridMenuRef = useRef<HTMLDivElement>(null);
-  const qMenuRef = useRef<HTMLDivElement>(null);
   const seqGridRef = useRef<HTMLDivElement>(null);
 
   const { isPlaying, isPaused, isRecording, currentStep, resolution, currentBank, pattern } = sequencerState;
@@ -269,6 +412,46 @@ export const StepSequencer: React.FC<StepSequencerProps> = React.memo(({
     };
   }, [isSeqOpen, isPlaying, isPaused, activePage, resolution]);
 
+  // Finalizar trazo de dibujo/borrado de pasos al soltar el botón o dedo en cualquier parte de la ventana
+  useEffect(() => {
+    const endStepDrag = () => {
+      if (stepDragRef.current.active) {
+        stepDragRef.current.active = false;
+        stepDragRef.current.lastKey = "";
+      }
+    };
+    window.addEventListener("pointerup", endStepDrag);
+    window.addEventListener("pointercancel", endStepDrag);
+    window.addEventListener("blur", endStepDrag);
+    return () => {
+      window.removeEventListener("pointerup", endStepDrag);
+      window.removeEventListener("pointercancel", endStepDrag);
+      window.removeEventListener("blur", endStepDrag);
+    };
+  }, []);
+
+  const applyStepStroke = (padIdx: number, actualStep: number, targetActive: boolean) => {
+    const key = `${padIdx}:${actualStep}`;
+    if (stepDragRef.current.lastKey === key) return;
+    stepDragRef.current.lastKey = key;
+
+    const livePattern = audioBridge.seqGetPattern();
+    const currentVel = livePattern[padIdx]?.[actualStep] ?? pattern[padIdx]?.[actualStep] ?? 0;
+    const isCurrentlyActive = currentVel > 0;
+    if (isCurrentlyActive === targetActive) return;
+
+    const shouldSaveUndo = !stepDragRef.current.undoSaved;
+    if (shouldSaveUndo) {
+      stepDragRef.current.undoSaved = true;
+    }
+
+    if (onSetStep) {
+      onSetStep(padIdx, actualStep, targetActive, shouldSaveUndo);
+    } else {
+      onToggleStep(padIdx, actualStep);
+    }
+  };
+
   // Cierre al hacer clic fuera de los menús flotantes
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -279,13 +462,102 @@ export const StepSequencer: React.FC<StepSequencerProps> = React.memo(({
       if (gridMenuRef.current && !gridMenuRef.current.contains(target)) {
         setIsGridMenuOpen(false);
       }
-      if (qMenuRef.current && !qMenuRef.current.contains(target)) {
-        setIsQMenuOpen(false);
-      }
     };
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  // Cerrar menú contextual de Pad al hacer clic/toque fuera o pulsar Escape
+  useEffect(() => {
+    if (!contextMenu) return;
+
+    const handleOutside = (event: MouseEvent | TouchEvent) => {
+      if (contextMenuRef.current && !contextMenuRef.current.contains(event.target as Node)) {
+        setContextMenu(null);
+        setIsSf2MenuOpen(false);
+        setActiveSf2Category(null);
+      }
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setContextMenu(null);
+        setIsSf2MenuOpen(false);
+        setActiveSf2Category(null);
+      }
+    };
+
+    document.addEventListener("mousedown", handleOutside);
+    document.addEventListener("touchstart", handleOutside, { passive: true });
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handleOutside);
+      document.removeEventListener("touchstart", handleOutside);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [contextMenu]);
+
+  const openPadContextMenu = (padIdx: number, clientX: number, clientY: number) => {
+    const vw = typeof window !== "undefined" ? window.innerWidth : 1024;
+    const vh = typeof window !== "undefined" ? window.innerHeight : 768;
+    const x = Math.max(8, Math.min(clientX, vw - 220));
+    const y = Math.max(8, Math.min(clientY, vh - 190));
+    setContextMenu({ padIdx, x, y });
+    setIsSf2MenuOpen(false);
+    setActiveSf2Category(null);
+  };
+
+  const handleAssignSf2Drum = (padIdx: number, note: number, sampleName: string) => {
+    audioBridge.setPadNote(padIdx, note);
+    setDrumNotes((prev) => {
+      const next = [...prev];
+      next[padIdx] = note;
+      return next;
+    });
+    setCustomDrumNames((prev) => ({
+      ...prev,
+      [padIdx]: sampleName,
+    }));
+    // Preescucha inmediata del sonido seleccionado en el Pad
+    audioBridge.noteOn(note, 127, 0, "drum", padIdx);
+    setTimeout(() => audioBridge.noteOff(note, 0, "drum", padIdx), 140);
+
+    setContextMenu(null);
+    setIsSf2MenuOpen(false);
+    setActiveSf2Category(null);
+  };
+
+  const handleResetPadDrum = (padIdx: number) => {
+    const defaultNote = DEFAULT_PAD_NOTES[padIdx] ?? 36;
+    audioBridge.setPadNote(padIdx, defaultNote);
+    setDrumNotes((prev) => {
+      const next = [...prev];
+      next[padIdx] = defaultNote;
+      return next;
+    });
+    setCustomDrumNames((prev) => {
+      const next = { ...prev };
+      delete next[padIdx];
+      return next;
+    });
+    setContextMenu(null);
+    setIsSf2MenuOpen(false);
+    setActiveSf2Category(null);
+  };
+
+  const getPadDisplayName = (padIdx: number): string => {
+    if (customDrumNames[padIdx]) {
+      return customDrumNames[padIdx];
+    }
+    const note = drumNotes[padIdx];
+    if (note !== DEFAULT_PAD_NOTES[padIdx]) {
+      for (const cat of SF2_DRUM_CATEGORIES) {
+        const found = cat.samples.find((s) => s.note === note);
+        if (found) return found.name;
+      }
+    }
+    return padSlots[padIdx]?.sampleName || DEFAULT_DRUM_NAMES[padIdx] || `P${padIdx + 1}`;
+  };
 
   useEffect(() => {
     if (!isEditingBpm) {
@@ -308,28 +580,10 @@ export const StepSequencer: React.FC<StepSequencerProps> = React.memo(({
     }
   };
 
-  const handleSelectQuantizeMode = (mode: QuantizeMode) => {
-    setInternalQuantizeMode(mode);
-    onSetQuantizeMode?.(mode);
-  };
-
-  const handleSelectQuantizeStrength = (strength: number) => {
-    setInternalQuantizeStrength(strength);
-    onSetQuantizeStrength?.(strength);
-  };
-
   const handleSelectKit = (mode: PadEngineMode) => {
     setInternalPadEngineMode(mode);
     onChangePadEngineMode?.(mode);
     setIsKitMenuOpen(false);
-  };
-
-  const handleToggleVisualMetronomeClick = () => {
-    if (onToggleVisualMetronome) {
-      onToggleVisualMetronome();
-    } else {
-      setInternalVisualMetronome((prev) => !prev);
-    }
   };
 
   return (
@@ -352,7 +606,7 @@ export const StepSequencer: React.FC<StepSequencerProps> = React.memo(({
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_#10b981]" />
                   <span className="text-[8.5px] lg:text-[9.5px] uppercase font-bold tracking-wider text-zinc-400">KIT:</span>
                   <span className="font-bold text-zinc-100 group-hover:text-emerald-400 transition max-w-[90px] truncate">
-                    {padEngineMode === "drumKitSf2" ? "Yamaha RX7" : "Custom WAV"}
+                    Yamaha RX7
                   </span>
                   <ChevronDown
                     size={11}
@@ -378,18 +632,6 @@ export const StepSequencer: React.FC<StepSequencerProps> = React.memo(({
                     >
                       <span>Yamaha RX7 (SF2)</span>
                       {padEngineMode === "drumKitSf2" && <Check size={12} className="text-emerald-400" />}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleSelectKit("wavSampler")}
-                      className={`w-full text-left px-3 py-1.5 flex items-center justify-between transition-colors cursor-pointer text-[10px] ${
-                        padEngineMode === "wavSampler"
-                          ? "bg-emerald-500/20 text-emerald-400 font-bold"
-                          : "hover:bg-white/5 hover:text-white"
-                      }`}
-                    >
-                      <span>Custom WAV (Pads)</span>
-                      {padEngineMode === "wavSampler" && <Check size={12} className="text-emerald-400" />}
                     </button>
                   </div>
                 )}
@@ -597,80 +839,6 @@ export const StepSequencer: React.FC<StepSequencerProps> = React.memo(({
                 );
               })()}
 
-              {/* Botón Q y Popover Minimalista de Cuantización */}
-              <div ref={qMenuRef} className="relative z-50">
-                <button
-                  type="button"
-                  onClick={() => setIsQMenuOpen((prev) => !prev)}
-                  title={`Cuantización de Entrada: ${quantizeMode.toUpperCase()} (${Math.round(quantizeStrength * 100)}%)`}
-                  className={`h-6 w-6 lg:h-7 lg:w-7 rounded-md text-[9px] lg:text-[10px] font-mono font-bold border transition-all flex items-center justify-center relative active:scale-95 cursor-pointer select-none ${
-                    quantizeMode !== "off"
-                      ? "bg-cyan-950/40 text-cyan-300 border-cyan-500/60 shadow-[0_0_8px_rgba(6,182,212,0.4)]"
-                      : "bg-white/[0.03] text-zinc-500 border-white/10 hover:text-white"
-                  }`}
-                >
-                  <span>Q</span>
-                  {quantizeMode !== "off" && (
-                    <span className="absolute top-0.5 right-0.5 lg:top-1 lg:right-1 w-1 h-1 rounded-full bg-cyan-400 shadow-[0_0_4px_#22d3ee]" />
-                  )}
-                </button>
-
-                {isQMenuOpen && (
-                  <div className="absolute top-full mt-1.5 right-0 z-50 w-52 bg-[#0c0d12] border border-white/20 rounded-xl shadow-[0_15px_40px_rgba(0,0,0,0.95),0_0_1px_1px_rgba(255,255,255,0.08)] p-2.5 text-xs font-mono text-zinc-200 animate-in fade-in zoom-in-95 duration-100 flex flex-col gap-2.5">
-                    {/* Selector Horizontal de Modos */}
-                    <div className="flex items-center justify-between bg-black/60 border border-white/10 rounded-lg p-0.5">
-                      {(["off", "eighth", "sixteenth", "thirtySecond"] as const).map((m) => (
-                        <button
-                          key={`q-mode-${m}`}
-                          type="button"
-                          onClick={() => handleSelectQuantizeMode(m)}
-                          className={`flex-1 py-1 rounded text-[9px] font-bold uppercase transition-all cursor-pointer ${
-                            quantizeMode === m
-                              ? "bg-cyan-500/25 text-cyan-300 border border-cyan-500/40 shadow-[0_0_6px_rgba(6,182,212,0.3)]"
-                              : "text-zinc-400 hover:text-white"
-                          }`}
-                        >
-                          {m === "off" ? "OFF" : m === "eighth" ? "1/8" : m === "sixteenth" ? "1/16" : "1/32"}
-                        </button>
-                      ))}
-                    </div>
-
-                    {/* Slider Minimalista de Fuerza */}
-                    {quantizeMode !== "off" && (
-                      <div className="flex flex-col gap-1 px-0.5">
-                        <div className="flex items-center justify-between text-[9px] text-zinc-400 font-semibold">
-                          <span>STRENGTH</span>
-                          <span className="text-cyan-300 font-bold tabular-nums">
-                            {Math.round(quantizeStrength * 100)}%
-                          </span>
-                        </div>
-                        <input
-                          type="range"
-                          min="0"
-                          max="1"
-                          step="0.05"
-                          value={quantizeStrength}
-                          onChange={(e) => handleSelectQuantizeStrength(parseFloat(e.target.value))}
-                          className="w-full accent-cyan-400 h-1 bg-white/10 rounded appearance-none cursor-pointer"
-                        />
-                      </div>
-                    )}
-
-                    {/* Botón Re-cuantizar limpio */}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        onRequantize?.();
-                        setIsQMenuOpen(false);
-                      }}
-                      className="w-full py-1 bg-cyan-950/60 hover:bg-cyan-900/60 border border-cyan-500/40 hover:border-cyan-400 rounded-md text-[9.5px] font-bold text-cyan-200 transition-all active:scale-95 cursor-pointer shadow-[0_0_8px_rgba(6,182,212,0.2)] text-center"
-                    >
-                      RE-QUANTIZE
-                    </button>
-                  </div>
-                )}
-              </div>
-
               {/* Separador vertical fino */}
               <div className="h-4 w-[1px] bg-white/10 mx-0.5" />
 
@@ -801,7 +969,7 @@ export const StepSequencer: React.FC<StepSequencerProps> = React.memo(({
           {/* 8 Pistas de Percusión con Botones Mecánicos TR-Style */}
           <div className="flex flex-col gap-[3px] sm:gap-1 lg:gap-1.5 overflow-hidden gpu-contain">
             {[0, 1, 2, 3, 4, 5, 6, 7].map((padIdx) => {
-              const padName = padSlots[padIdx]?.sampleName || DEFAULT_DRUM_NAMES[padIdx] || `P${padIdx + 1}`;
+              const padName = getPadDisplayName(padIdx);
               const theme = PAD_ROLE_THEMES[padIdx] || PAD_ROLE_THEMES[0];
               const isHit = activePads.has(padIdx + 1);
               const isSelected = selectedTrack === padIdx;
@@ -817,14 +985,66 @@ export const StepSequencer: React.FC<StepSequencerProps> = React.memo(({
                   <button
                     type="button"
                     data-pad-index={padIdx}
+                    onContextMenu={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      if (isMidiLearnActive) return;
+                      if (longPressTimerRef.current) {
+                        window.clearTimeout(longPressTimerRef.current);
+                        longPressTimerRef.current = null;
+                      }
+                      setSelectedTrack(padIdx);
+                      openPadContextMenu(padIdx, e.clientX, e.clientY);
+                    }}
                     onPointerDown={(e) => {
+                      if (e.button === 2) return;
                       e.preventDefault();
                       if (isMidiLearnActive) {
                         onSelectLearnTarget?.({ type: "pad", index: padIdx });
                         return;
                       }
                       setSelectedTrack(padIdx);
-                      onTriggerPad?.(padIdx);
+                      longPressTriggeredRef.current = false;
+                      if (longPressTimerRef.current) {
+                        window.clearTimeout(longPressTimerRef.current);
+                      }
+                      if (e.pointerType === "touch" || e.pointerType === "pen") {
+                        const cx = e.clientX;
+                        const cy = e.clientY;
+                        longPressTimerRef.current = window.setTimeout(() => {
+                          longPressTriggeredRef.current = true;
+                          openPadContextMenu(padIdx, cx, cy);
+                        }, 430);
+                      } else {
+                        onTriggerPad?.(padIdx);
+                      }
+                    }}
+                    onPointerUp={(e) => {
+                      if (longPressTimerRef.current) {
+                        window.clearTimeout(longPressTimerRef.current);
+                        longPressTimerRef.current = null;
+                      }
+                      if (
+                        !isMidiLearnActive &&
+                        (e.pointerType === "touch" || e.pointerType === "pen") &&
+                        !longPressTriggeredRef.current
+                      ) {
+                        onTriggerPad?.(padIdx);
+                      }
+                      longPressTriggeredRef.current = false;
+                    }}
+                    onPointerCancel={() => {
+                      if (longPressTimerRef.current) {
+                        window.clearTimeout(longPressTimerRef.current);
+                        longPressTimerRef.current = null;
+                      }
+                      longPressTriggeredRef.current = false;
+                    }}
+                    onPointerLeave={() => {
+                      if (longPressTimerRef.current) {
+                        window.clearTimeout(longPressTimerRef.current);
+                        longPressTimerRef.current = null;
+                      }
                     }}
                     className={`seq-pad-btn w-20 sm:w-24 lg:w-32 h-[22px] sm:h-6 lg:h-8 rounded-md lg:rounded-lg flex items-center justify-between px-1.5 lg:px-2.5 shrink-0 cursor-pointer border font-mono text-[8.5px] lg:text-[10px] font-bold select-none touch-none ${
                       isLearnSelected
@@ -840,7 +1060,7 @@ export const StepSequencer: React.FC<StepSequencerProps> = React.memo(({
                     title={
                       isMidiLearnActive
                         ? `Pad ${padIdx + 1} (${padName}): Asignar MIDI (${getMidiNoteName(mappedNote)} #${mappedNote})`
-                        : `Disparar Pad ${padIdx + 1}: ${padName} (${getMidiNoteName(mappedNote)})`
+                        : `Pad ${padIdx + 1}: ${padName} · Clic derecho o mantén pulsado para cambiar sonido SF2`
                     }
                   >
                     <span className="truncate">{padName}</span>
@@ -865,12 +1085,67 @@ export const StepSequencer: React.FC<StepSequencerProps> = React.memo(({
                           <button
                             type="button"
                             disabled={isStepDisabled}
+                            data-step-pad={padIdx}
                             data-actual-step={!isStepDisabled ? actualStep : undefined}
                             data-active={isActive ? "true" : "false"}
+                            onContextMenu={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                            }}
                             onPointerDown={(e) => {
                               e.preventDefault();
-                              if (!isStepDisabled) {
-                                onToggleStep(padIdx, actualStep);
+                              if (isStepDisabled) return;
+
+                              // En dispositivos táctiles (donde el dedo captura el puntero), liberar captura implícita
+                              // o usar elementFromPoint en onPointerMove para deslizar entre pasos
+                              if (e.pointerType === "touch" || e.pointerType === "pen") {
+                                try {
+                                  (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+                                } catch {
+                                  // Ignorar si no estaba capturado
+                                }
+                              }
+
+                              let mode: "paint" | "erase";
+                              if (e.button === 2) {
+                                mode = "erase";
+                              } else {
+                                mode = isActive ? "erase" : "paint";
+                              }
+
+                              stepDragRef.current = {
+                                active: true,
+                                mode,
+                                undoSaved: false,
+                                lastKey: "",
+                              };
+
+                              applyStepStroke(padIdx, actualStep, mode === "paint");
+                            }}
+                            onPointerEnter={() => {
+                              if (isStepDisabled || !stepDragRef.current.active) return;
+                              applyStepStroke(
+                                padIdx,
+                                actualStep,
+                                stepDragRef.current.mode === "paint"
+                              );
+                            }}
+                            onPointerMove={(e) => {
+                              if (!stepDragRef.current.active) return;
+                              if (e.pointerType === "touch" || e.pointerType === "pen") {
+                                const el = document.elementFromPoint(e.clientX, e.clientY);
+                                const stepBtn = el?.closest<HTMLButtonElement>(".seq-step-btn");
+                                if (stepBtn && !stepBtn.disabled) {
+                                  const p = Number(stepBtn.getAttribute("data-step-pad"));
+                                  const s = Number(stepBtn.getAttribute("data-actual-step"));
+                                  if (!isNaN(p) && !isNaN(s)) {
+                                    applyStepStroke(
+                                      p,
+                                      s,
+                                      stepDragRef.current.mode === "paint"
+                                    );
+                                  }
+                                }
                               }
                             }}
                             className={`seq-step-btn flex-1 h-[22px] sm:h-6 lg:h-8 rounded-[3px] font-mono text-[9px] relative overflow-hidden touch-none ${
@@ -1111,9 +1386,8 @@ export const StepSequencer: React.FC<StepSequencerProps> = React.memo(({
             })()}
           </div>
 
-          {/* Cápsula Unificada de Metrónomo [ Sonoro | Visual ] */}
+          {/* Botón de Metrónomo Sonoro (Click) */}
           <div className="flex items-stretch h-7 lg:h-8 rounded-lg bg-[#18191e] border border-white/15 shadow-[inset_0_1px_0_rgba(255,255,255,0.06),0_2px_4px_rgba(0,0,0,0.5)] overflow-hidden">
-            {/* Metrónomo Sonoro (Click) */}
             {(() => {
               const isClickSelected =
                 isMidiLearnActive &&
@@ -1138,7 +1412,7 @@ export const StepSequencer: React.FC<StepSequencerProps> = React.memo(({
                       ? "Metrónomo Sonoro: Activo"
                       : "Metrónomo Sonoro: Inactivo"
                   }
-                  className={`w-7 sm:w-8 lg:w-10 h-full flex items-center justify-center gap-1 lg:gap-1.5 cursor-pointer border-r border-white/10 touch-none ${
+                  className={`w-7 sm:w-8 lg:w-10 h-full flex items-center justify-center gap-1 lg:gap-1.5 cursor-pointer touch-none ${
                     isClickSelected
                       ? "bg-amber-950/40 text-amber-200 shadow-[inset_0_0_12px_rgba(245,158,11,0.6)] animate-pulse"
                       : isMidiLearnActive
@@ -1164,53 +1438,6 @@ export const StepSequencer: React.FC<StepSequencerProps> = React.memo(({
                   <span
                     className={`w-1.5 h-1.5 rounded-full shrink-0 ${
                       isClickEnabled ? "bg-amber-400 shadow-[0_0_4px_#f59e0b]" : "bg-zinc-600"
-                    }`}
-                  />
-                </button>
-              );
-            })()}
-
-            {/* Metrónomo Visual (Overlay) */}
-            {(() => {
-              const isSelected =
-                isMidiLearnActive &&
-                selectedLearnTarget?.type === "action" &&
-                selectedLearnTarget.id === "visualMetronome";
-              const mapped = getActionMappingLabel(midiLearnMapping, "visualMetronome");
-              return (
-                <button
-                  type="button"
-                  onPointerDown={(e) => {
-                    e.preventDefault();
-                    if (isMidiLearnActive) {
-                      onSelectLearnTarget?.({ type: "action", id: "visualMetronome" });
-                      return;
-                    }
-                    handleToggleVisualMetronomeClick();
-                  }}
-                  title={
-                    isMidiLearnActive
-                      ? `Metrónomo Visual: ${mapped ? `Asignado (${mapped})` : "Sin asignar"}`
-                      : isVisualMetronomeVisible
-                      ? "Metrónomo Visual: Activo"
-                      : "Metrónomo Visual: Inactivo"
-                  }
-                  className={`w-7 sm:w-8 lg:w-10 h-full flex items-center justify-center gap-1 lg:gap-1.5 cursor-pointer touch-none ${
-                    isSelected
-                      ? "bg-amber-950/40 text-amber-200 shadow-[inset_0_0_12px_rgba(245,158,11,0.6)] animate-pulse"
-                      : isMidiLearnActive
-                      ? "bg-amber-950/20 text-amber-300 hover:text-amber-200 hover:bg-amber-950/40"
-                      : isVisualMetronomeVisible
-                      ? "bg-emerald-950/40 text-emerald-300 shadow-[inset_0_0_8px_rgba(16,185,129,0.3)]"
-                      : "text-zinc-400 hover:text-white hover:bg-white/[0.06] active:bg-white/[0.12]"
-                  }`}
-                >
-                  <Eye size={12} className="shrink-0" />
-                  <span
-                    className={`w-1.5 h-1.5 rounded-full shrink-0 ${
-                      isVisualMetronomeVisible
-                        ? "bg-emerald-400 shadow-[0_0_4px_#10b981]"
-                        : "bg-zinc-600"
                     }`}
                   />
                 </button>
@@ -1349,6 +1576,149 @@ export const StepSequencer: React.FC<StepSequencerProps> = React.memo(({
           </div>
         </div>
       </div>
+
+      {/* Menú Contextual Noir para Pads (Clic Derecho en PC / Pulsación Larga en Móvil) */}
+      {contextMenu && (() => {
+        const vw = typeof window !== "undefined" ? window.innerWidth : 1024;
+        const vh = typeof window !== "undefined" ? window.innerHeight : 768;
+        const isCompact = vw < 680;
+        const menuLeft = isCompact
+          ? Math.max(8, Math.min(contextMenu.x, vw - 216))
+          : Math.max(8, Math.min(contextMenu.x, vw - (isSf2MenuOpen ? (activeSf2Category ? 560 : 370) : 220)));
+        const menuTop = Math.max(8, Math.min(contextMenu.y, vh - 260));
+        const activeCategoryObj = SF2_DRUM_CATEGORIES.find((c) => c.id === activeSf2Category);
+
+        return (
+          <div
+            ref={contextMenuRef}
+            className={`fixed z-[80] flex ${isCompact ? "flex-col gap-1" : "items-start"} animate-in fade-in zoom-in-95 duration-100 select-none`}
+            style={{ top: menuTop, left: menuLeft }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Menú Principal */}
+            <div className="bg-[#0e0e12] border border-white/15 rounded-xl shadow-[0_20px_50px_rgba(0,0,0,0.95),inset_0_1px_0_rgba(255,255,255,0.08)] py-1 w-52 text-xs font-mono text-zinc-200">
+              <div className="px-3 py-1.5 text-[10px] uppercase font-bold tracking-wider text-zinc-400 border-b border-white/5 mb-1 flex items-center justify-between">
+                <span>Pad {contextMenu.padIdx + 1} · {getPadDisplayName(contextMenu.padIdx)}</span>
+                <span className="text-[9.5px] text-emerald-400 font-bold">SF2</span>
+              </div>
+
+              {/* Asignar sonido SF2 con submenú en cascada */}
+              <button
+                type="button"
+                className={`w-full text-left px-3 py-1.5 flex items-center justify-between transition-colors cursor-pointer text-[11px] ${
+                  isSf2MenuOpen ? "bg-white/10 text-white" : "hover:bg-white/10 hover:text-white"
+                }`}
+                onMouseEnter={() => {
+                  if (!isCompact) setIsSf2MenuOpen(true);
+                }}
+                onClick={() => setIsSf2MenuOpen((prev) => !prev)}
+              >
+                <div className="flex items-center gap-1.5">
+                  <Music size={12} className="text-emerald-400 shrink-0" />
+                  <span>Asignar sonido SF2</span>
+                </div>
+                <ChevronRight
+                  size={12}
+                  className={`text-zinc-400 shrink-0 transition-transform ${
+                    isCompact && isSf2MenuOpen ? "rotate-90" : ""
+                  }`}
+                />
+              </button>
+
+              {/* Limpiar notas de la pista de este Pad */}
+              <button
+                type="button"
+                className="w-full text-left px-3 py-1.5 hover:bg-amber-950/50 hover:text-amber-300 text-amber-400 flex items-center justify-between transition-colors border-t border-white/5 cursor-pointer text-[11px]"
+                onClick={() => {
+                  const idx = contextMenu.padIdx;
+                  setContextMenu(null);
+                  setIsSf2MenuOpen(false);
+                  setActiveSf2Category(null);
+                  onClearTrack?.(idx);
+                }}
+              >
+                <span>Limpiar notas de pista</span>
+                <Eraser size={13} className="text-amber-400/90 shrink-0" />
+              </button>
+
+              {/* Restaurar sonido por defecto del Pad */}
+              <button
+                type="button"
+                className="w-full text-left px-3 py-1.5 hover:bg-white/10 hover:text-white text-zinc-300 flex items-center justify-between transition-colors border-t border-white/5 cursor-pointer text-[11px]"
+                onClick={() => handleResetPadDrum(contextMenu.padIdx)}
+              >
+                <span>Sonido por defecto</span>
+                <RotateCcw size={12} className="text-zinc-400 shrink-0" />
+              </button>
+            </div>
+
+            {/* Submenú Nivel 1: Categorías de Yamaha RX7 */}
+            {isSf2MenuOpen && (
+              <div className={`${isCompact ? "w-52" : "ml-1 w-36"} bg-[#0e0e12] border border-white/15 rounded-xl shadow-[0_20px_50px_rgba(0,0,0,0.95),inset_0_1px_0_rgba(255,255,255,0.08)] py-1 text-xs font-mono text-zinc-200`}>
+                <div className="px-2.5 py-1 text-[9.5px] uppercase font-bold tracking-wider text-zinc-400 border-b border-white/5 mb-1 font-sans">
+                  CATEGORÍAS RX7
+                </div>
+                {SF2_DRUM_CATEGORIES.map((cat) => {
+                  const isActive = activeSf2Category === cat.id;
+                  return (
+                    <button
+                      key={cat.id}
+                      type="button"
+                      className={`w-full text-left px-2.5 py-1.5 flex items-center justify-between transition-colors cursor-pointer text-[10px] font-sans font-medium uppercase tracking-wider ${
+                        isActive
+                          ? "bg-emerald-500/20 text-emerald-300 font-bold"
+                          : "text-zinc-300 hover:bg-white/[0.06] hover:text-white"
+                      }`}
+                      onMouseEnter={() => {
+                        if (!isCompact) setActiveSf2Category(cat.id);
+                      }}
+                      onClick={() => setActiveSf2Category((prev) => (isCompact && prev === cat.id ? null : cat.id))}
+                    >
+                      <span>{cat.name}</span>
+                      <ChevronRight
+                        size={11}
+                        className={`${isActive ? "text-emerald-400" : "text-zinc-500"} transition-transform ${
+                          isCompact && isActive ? "rotate-90" : ""
+                        }`}
+                      />
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Submenú Nivel 2: Lista de Sonidos de la Categoría Seleccionada */}
+            {isSf2MenuOpen && activeCategoryObj && (
+              <div className={`${isCompact ? "w-52 max-h-48" : "ml-1 w-48 max-h-64"} bg-[#0e0e12] border border-white/15 rounded-xl shadow-[0_20px_50px_rgba(0,0,0,0.95),inset_0_1px_0_rgba(255,255,255,0.08)] py-1 text-xs font-mono text-zinc-200 overflow-y-auto`}>
+                <div className="px-2.5 py-1 text-[9.5px] uppercase font-bold tracking-wider text-emerald-400 border-b border-white/5 mb-1 font-sans sticky top-0 bg-[#0e0e12]">
+                  {activeCategoryObj.name}
+                </div>
+                {activeCategoryObj.samples.map((sample) => {
+                  const isCurrentNote = drumNotes[contextMenu.padIdx] === sample.note;
+                  return (
+                    <button
+                      key={sample.note}
+                      type="button"
+                      className={`w-full text-left px-2.5 py-1.5 flex items-center justify-between transition-colors cursor-pointer text-[10.5px] font-sans ${
+                        isCurrentNote
+                          ? "bg-emerald-500/15 text-emerald-300 font-semibold"
+                          : "text-zinc-300 hover:bg-white/[0.08] hover:text-white"
+                      }`}
+                      onClick={() => handleAssignSf2Drum(contextMenu.padIdx, sample.note, sample.name)}
+                    >
+                      <span className="truncate pr-1">{sample.name}</span>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <span className="text-[9px] font-mono text-zinc-500 tabular-nums">[{sample.note}]</span>
+                        {isCurrentNote && <Check size={11} className="text-emerald-400" />}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        );
+      })()}
     </div>
   );
 });

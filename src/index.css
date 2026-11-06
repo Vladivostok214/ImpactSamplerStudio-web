@@ -103,7 +103,8 @@ html, body, #root {
 
 .piano-key-white {
   background: linear-gradient(to bottom, #eef1f5, #fafbfc, #dce2ea);
-  border-right: 1px solid rgba(0, 0, 0, 0.3);
+  border-right: 1px solid #9da4b0;
+  box-shadow: 1px 0 0 #dce2ea;
   cursor: pointer;
 }
 
@@ -127,24 +128,14 @@ html, body, #root {
    PLAYHEAD Y PADS DEL SECUENCIADOR POR DOM DIRECTO (0 RE-RENDERS EN REACT)
    ========================================================================= */
 
-.seq-step-btn[data-playhead="true"][data-active="false"] {
-  background: #282d38 !important;
-  border-color: #34d399 !important;
-}
-
 .seq-step-btn[data-playhead="true"][data-active="false"] .seq-step-led {
   background-color: #34d399 !important;
-}
-
-.seq-step-btn[data-playhead="true"][data-active="true"] {
-  background: #fcd34d !important;
-  color: #000000 !important;
-  border-color: #ffffff !important;
-  z-index: 10;
+  box-shadow: 0 0 6px #10b981;
 }
 
 .seq-step-btn[data-playhead="true"][data-active="true"] .seq-step-led {
   background-color: #ffffff !important;
+  box-shadow: 0 0 8px #ffffff;
 }
 
 .seq-pad-btn[data-pad-hit="true"] {

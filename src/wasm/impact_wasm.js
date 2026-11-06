@@ -148,6 +148,17 @@ export class WasmEngine {
         const len0 = WASM_VECTOR_LEN;
         wasm.wasmengine_seq_set_resolution(this.__wbg_ptr, ptr0, len0);
     }
+    /**
+     * @param {number} pad_idx
+     * @param {number} step_idx
+     * @param {boolean} active
+     * @param {boolean} save_undo
+     * @returns {number}
+     */
+    seq_set_step(pad_idx, step_idx, active, save_undo) {
+        const ret = wasm.wasmengine_seq_set_step(this.__wbg_ptr, pad_idx, step_idx, active, save_undo);
+        return ret;
+    }
     seq_stop() {
         wasm.wasmengine_seq_stop(this.__wbg_ptr);
     }
@@ -263,6 +274,13 @@ export class WasmEngine {
      */
     set_pad_fader(pad_idx, val_7bit) {
         wasm.wasmengine_set_pad_fader(this.__wbg_ptr, pad_idx, val_7bit);
+    }
+    /**
+     * @param {number} pad_idx
+     * @param {number} note
+     */
+    set_pad_note(pad_idx, note) {
+        wasm.wasmengine_set_pad_note(this.__wbg_ptr, pad_idx, note);
     }
     /**
      * @param {number} channel

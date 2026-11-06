@@ -23,6 +23,7 @@ export class WasmEngine {
     seq_play(): void;
     seq_record_hit(pad_idx: number, velocity: number, latency_ms: number): number;
     seq_set_resolution(res_str: string): void;
+    seq_set_step(pad_idx: number, step_idx: number, active: boolean, save_undo: boolean): number;
     seq_stop(): void;
     seq_toggle_bank(): string;
     seq_toggle_play(): boolean;
@@ -39,6 +40,7 @@ export class WasmEngine {
     set_master_fader(val_7bit: number): void;
     set_mod_wheel(channel: number, value_7bit: number): void;
     set_pad_fader(pad_idx: number, val_7bit: number): void;
+    set_pad_note(pad_idx: number, note: number): void;
     set_pitch_bend(channel: number, bend: number): void;
     set_program(channel: number, patch: number, bank: number): void;
     update_arp_params(enabled: boolean, hold: boolean, mode_str: string, rate_str: string, octaves: number, bpm: number): void;
@@ -68,6 +70,7 @@ export interface InitOutput {
     readonly wasmengine_seq_play: (a: number) => void;
     readonly wasmengine_seq_record_hit: (a: number, b: number, c: number, d: number) => number;
     readonly wasmengine_seq_set_resolution: (a: number, b: number, c: number) => void;
+    readonly wasmengine_seq_set_step: (a: number, b: number, c: number, d: number, e: number) => number;
     readonly wasmengine_seq_stop: (a: number) => void;
     readonly wasmengine_seq_toggle_bank: (a: number) => [number, number];
     readonly wasmengine_seq_toggle_play: (a: number) => number;
@@ -84,6 +87,7 @@ export interface InitOutput {
     readonly wasmengine_set_master_fader: (a: number, b: number) => void;
     readonly wasmengine_set_mod_wheel: (a: number, b: number, c: number) => void;
     readonly wasmengine_set_pad_fader: (a: number, b: number, c: number) => void;
+    readonly wasmengine_set_pad_note: (a: number, b: number, c: number) => void;
     readonly wasmengine_set_pitch_bend: (a: number, b: number, c: number) => void;
     readonly wasmengine_set_program: (a: number, b: number, c: number, d: number) => void;
     readonly wasmengine_update_arp_params: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number) => void;

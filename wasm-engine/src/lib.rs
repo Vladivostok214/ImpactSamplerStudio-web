@@ -195,11 +195,23 @@ impl WasmEngine {
             let cc7 = Self::fader_to_cc7(val);
             synth.process_midi_message(ch, 0xB0, 7, cc7);
             if val == 0 {
-                let note = sequencer::DEFAULT_PAD_NOTES[pad_idx] as i32;
+                let note = self.sequencer.get_pad_note(pad_idx) as i32;
                 synth.note_off(ch, note);
                 synth.note_off(9, note);
             }
         }
+    }
+
+    pub fn set_pad_note(&mut self, pad_idx: usize, note: u8) {
+        if pad_idx >= NUM_PADS {
+            return;
+        }
+        let old_note = self.sequencer.get_pad_note(pad_idx) as i32;
+        if let Some(synth) = &mut self.synthesizer {
+            synth.note_off(pad_idx as i32, old_note);
+            synth.note_off(9, old_note);
+        }
+        self.sequencer.set_pad_note(pad_idx, note);
     }
 
     pub fn note_off_all(&mut self, immediate: bool) {
@@ -267,7 +279,7 @@ impl WasmEngine {
     pub fn seq_stop(&mut self) {
         self.sequencer.stop();
         if let Some(synth) = &mut self.synthesizer {
-            for (pad_idx, note) in sequencer::DEFAULT_PAD_NOTES.iter().enumerate() {
+            for (pad_idx, note) in self.sequencer.pad_notes.iter().enumerate() {
                 synth.note_off(pad_idx as i32, *note as i32);
                 synth.note_off(9, *note as i32);
             }
@@ -278,7 +290,7 @@ impl WasmEngine {
         let is_playing = self.sequencer.toggle_play();
         if !is_playing {
             if let Some(synth) = &mut self.synthesizer {
-                for (pad_idx, note) in sequencer::DEFAULT_PAD_NOTES.iter().enumerate() {
+                for (pad_idx, note) in self.sequencer.pad_notes.iter().enumerate() {
                     synth.note_off(pad_idx as i32, *note as i32);
                     synth.note_off(9, *note as i32);
                 }
@@ -297,6 +309,10 @@ impl WasmEngine {
 
     pub fn seq_toggle_step(&mut self, pad_idx: usize, step_idx: usize) -> u8 {
         self.sequencer.toggle_step(pad_idx, step_idx)
+    }
+
+    pub fn seq_set_step(&mut self, pad_idx: usize, step_idx: usize, active: bool, save_undo: bool) -> u8 {
+        self.sequencer.set_step(pad_idx, step_idx, active, save_undo)
     }
 
     pub fn seq_record_hit(&mut self, pad_idx: usize, velocity: u8, latency_ms: f32) -> i32 {

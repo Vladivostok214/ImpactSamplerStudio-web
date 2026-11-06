@@ -35,6 +35,7 @@ class ImpactAudioProcessor extends AudioWorkletProcessor {
   private drumLoaded = false;
   private lastStep = -1;
   private isRecording = false;
+  private padNotes: number[] = [36, 38, 42, 46, 41, 45, 49, 51];
   private drumLeft = new Float32Array(128);
   private drumRight = new Float32Array(128);
 
@@ -88,10 +89,12 @@ class ImpactAudioProcessor extends AudioWorkletProcessor {
 
       case 'NOTE_ON': {
         const channel = data.channel ?? 0;
-        const key = data.key;
         const velocity = data.velocity ?? 100;
-        const padIdx = typeof data.padIdx === 'number' ? data.padIdx : DRUM_NOTE_TO_PAD[key];
-        const isDrumTarget = data.target === 'drum' || channel === 9;
+        const padIdx = typeof data.padIdx === 'number' ? data.padIdx : DRUM_NOTE_TO_PAD[data.key];
+        const key = (typeof data.padIdx === 'number' && data.padIdx >= 0 && data.padIdx < 8)
+          ? (data.key ?? this.padNotes[data.padIdx])
+          : data.key;
+        const isDrumTarget = data.target === 'drum' || channel === 9 || typeof data.padIdx === 'number';
 
         if (isDrumTarget) {
           const targetEngine = this.drumLoaded && this.drumEngine ? this.drumEngine : this.engine;
@@ -124,9 +127,11 @@ class ImpactAudioProcessor extends AudioWorkletProcessor {
 
       case 'NOTE_OFF': {
         const channel = data.channel ?? 0;
-        const key = data.key;
-        const padIdx = typeof data.padIdx === 'number' ? data.padIdx : DRUM_NOTE_TO_PAD[key];
-        const isDrumTarget = data.target === 'drum' || channel === 9;
+        const padIdx = typeof data.padIdx === 'number' ? data.padIdx : DRUM_NOTE_TO_PAD[data.key];
+        const key = (typeof data.padIdx === 'number' && data.padIdx >= 0 && data.padIdx < 8)
+          ? (data.key ?? this.padNotes[data.padIdx])
+          : data.key;
+        const isDrumTarget = data.target === 'drum' || channel === 9 || typeof data.padIdx === 'number';
 
         if (isDrumTarget) {
           const targetEngine = this.drumLoaded && this.drumEngine ? this.drumEngine : this.engine;
@@ -174,6 +179,14 @@ class ImpactAudioProcessor extends AudioWorkletProcessor {
       case 'SET_PAD_FADER':
         this.engine.set_pad_fader(data.index, data.value);
         this.drumEngine?.set_pad_fader(data.index, data.value);
+        break;
+
+      case 'SET_PAD_NOTE':
+        if (typeof data.index === 'number' && data.index >= 0 && data.index < 8 && typeof data.note === 'number') {
+          this.padNotes[data.index] = data.note;
+          this.engine.set_pad_note(data.index, data.note);
+          this.drumEngine?.set_pad_note(data.index, data.note);
+        }
         break;
 
       case 'SET_MASTER_FADER':
@@ -262,9 +275,12 @@ class ImpactAudioProcessor extends AudioWorkletProcessor {
       }
 
       case 'SEQ_TOGGLE_STEP': {
-        const active = seqEngine.seq_toggle_step(data.padIdx, data.stepIdx);
-        const pattern = this.getFlatPatternGrid(seqEngine);
-        this.port.postMessage({ type: 'SEQ_PATTERN_UPDATED', pattern, padIdx: data.padIdx, stepIdx: data.stepIdx, active });
+        seqEngine.seq_toggle_step(data.padIdx, data.stepIdx);
+        break;
+      }
+
+      case 'SEQ_SET_STEP': {
+        seqEngine.seq_set_step(data.padIdx, data.stepIdx, Boolean(data.active), Boolean(data.saveUndo));
         break;
       }
 
@@ -282,9 +298,12 @@ class ImpactAudioProcessor extends AudioWorkletProcessor {
         break;
       }
 
-      case 'SEQ_SET_RESOLUTION':
+      case 'SEQ_SET_RESOLUTION': {
         seqEngine.seq_set_resolution(data.resolution);
+        const pattern = this.getFlatPatternGrid(seqEngine);
+        this.port.postMessage({ type: 'SEQ_PATTERN_UPDATED', pattern });
         break;
+      }
 
       case 'SEQ_TOGGLE_BANK': {
         const bank = seqEngine.seq_toggle_bank();

@@ -17,12 +17,39 @@ export class WebAudioBridge {
   private cachedIsPlaying: boolean = false;
   private cachedIsRecording: boolean = false;
   private cachedBank: 'a' | 'b' = 'a';
-  private cachedPattern: number[][] = Array.from({ length: 8 }, () => new Array(32).fill(0));
+  private bankBInitialized: boolean = false;
+  private cachedBankA: number[][] = Array.from({ length: 8 }, () => new Array(32).fill(0));
+  private cachedBankB: number[][] = Array.from({ length: 8 }, () => new Array(32).fill(0));
+  private cachedPadNotes: number[] = [36, 38, 42, 46, 41, 45, 49, 51];
   private stepListeners: Set<(step: number) => void> = new Set();
   private patternListeners: Set<(pattern: number[][]) => void> = new Set();
   private soundFontLoadResolvers: Map<string, { resolve: () => void; reject: (err: Error) => void }> = new Map();
 
   private constructor() {}
+
+  private getActiveBankGrid(): number[][] {
+    return this.cachedBank === 'a' ? this.cachedBankA : this.cachedBankB;
+  }
+
+  private setActiveBankGrid(grid: number[][]): void {
+    const cloned = grid.map((row) => [...row]);
+    if (this.cachedBank === 'a') {
+      this.cachedBankA = cloned;
+    } else {
+      this.cachedBankB = cloned;
+    }
+  }
+
+  private notifyPatternListeners(): void {
+    const snapshot = this.seqGetPattern();
+    this.patternListeners.forEach((listener) => {
+      try {
+        listener(snapshot);
+      } catch {
+        // Prevenir que errores en UI interrumpan otros listeners
+      }
+    });
+  }
 
   public static getInstance(): WebAudioBridge {
     if (!WebAudioBridge.instance) {
@@ -93,33 +120,19 @@ export class WebAudioBridge {
               this.cachedIsPlaying = data.isPlaying;
               break;
 
-            case 'SEQ_STEP_RECORDED':
-              if (this.cachedPattern[data.padIdx]) {
-                const nextRow = [...this.cachedPattern[data.padIdx]];
-                nextRow[data.stepIdx] = data.active ? 100 : 0;
-                const nextPattern = [...this.cachedPattern];
-                nextPattern[data.padIdx] = nextRow;
-                this.cachedPattern = nextPattern;
-                this.patternListeners.forEach((listener) => {
-                  try {
-                    listener(this.cachedPattern);
-                  } catch {
-                    // Prevenir que errores en UI interrumpan otros listeners
-                  }
-                });
+            case 'SEQ_STEP_RECORDED': {
+              const activeGrid = this.getActiveBankGrid();
+              if (activeGrid[data.padIdx]) {
+                activeGrid[data.padIdx][data.stepIdx] = data.active ? 100 : 0;
+                this.notifyPatternListeners();
               }
               break;
+            }
 
             case 'SEQ_PATTERN_UPDATED':
               if (data.pattern) {
-                this.cachedPattern = data.pattern;
-                this.patternListeners.forEach((listener) => {
-                  try {
-                    listener(this.cachedPattern);
-                  } catch {
-                    // Prevenir que errores en UI interrumpan otros listeners
-                  }
-                });
+                this.setActiveBankGrid(data.pattern);
+                this.notifyPatternListeners();
               }
               break;
 
@@ -128,7 +141,8 @@ export class WebAudioBridge {
                 this.cachedBank = data.bank;
               }
               if (data.pattern) {
-                this.cachedPattern = data.pattern;
+                this.setActiveBankGrid(data.pattern);
+                this.notifyPatternListeners();
               }
               break;
 
@@ -179,6 +193,9 @@ export class WebAudioBridge {
 
         // 5. Conectar el nodo de AudioWorklet directamente a los altavoces
         this.workletNode.connect(this.ctx.destination);
+        for (let i = 0; i < 8; i++) {
+          this.workletNode.port.postMessage({ type: 'SET_PAD_NOTE', index: i, note: this.cachedPadNotes[i] });
+        }
         this.isInitialized = true;
       } catch (err) {
         this.initializationPromise = null;
@@ -247,20 +264,31 @@ export class WebAudioBridge {
     return this.drumEngineLoaded;
   }
 
-  public noteOn(key: number, velocity: number = 127, channel: number = 0, target?: 'melodic' | 'drum'): void {
+  public noteOn(key: number, velocity: number = 127, channel: number = 0, target?: 'melodic' | 'drum', padIdx?: number): void {
     if (!this.workletNode) return;
-    if (target !== 'drum' && (!this.currentSoundFontName || this.currentSoundFontName === 'Ninguno') && !this.drumEngineLoaded) return;
+    if (target !== 'drum' && typeof padIdx !== 'number' && (!this.currentSoundFontName || this.currentSoundFontName === 'Ninguno') && !this.drumEngineLoaded) return;
     this.resumeAudio();
     const baseLat = this.ctx?.baseLatency || 0.008;
     const outLat = (this.ctx as AudioContext & { outputLatency?: number })?.outputLatency || 0.012;
     const latencyMs = (baseLat + outLat) * 1000;
-    this.workletNode.port.postMessage({ type: 'NOTE_ON', key, velocity, channel, target, latencyMs });
+    this.workletNode.port.postMessage({ type: 'NOTE_ON', key, velocity, channel, target, padIdx, latencyMs });
   }
 
-  public noteOff(key: number, channel: number = 0, target?: 'melodic' | 'drum'): void {
+  public noteOff(key: number, channel: number = 0, target?: 'melodic' | 'drum', padIdx?: number): void {
     if (!this.workletNode) return;
-    if (target !== 'drum' && (!this.currentSoundFontName || this.currentSoundFontName === 'Ninguno') && !this.drumEngineLoaded) return;
-    this.workletNode.port.postMessage({ type: 'NOTE_OFF', key, channel, target });
+    if (target !== 'drum' && typeof padIdx !== 'number' && (!this.currentSoundFontName || this.currentSoundFontName === 'Ninguno') && !this.drumEngineLoaded) return;
+    this.workletNode.port.postMessage({ type: 'NOTE_OFF', key, channel, target, padIdx });
+  }
+
+  public setPadNote(padIndex: number, note: number): void {
+    if (padIndex < 0 || padIndex >= 8) return;
+    const clamped = Math.max(0, Math.min(127, Math.round(note)));
+    this.cachedPadNotes[padIndex] = clamped;
+    this.workletNode?.port.postMessage({ type: 'SET_PAD_NOTE', index: padIndex, note: clamped });
+  }
+
+  public getPadNotes(): number[] {
+    return [...this.cachedPadNotes];
   }
 
   public noteOffAll(immediate: boolean = false): void {
@@ -404,24 +432,40 @@ export class WebAudioBridge {
 
   public seqToggleStep(padIdx: number, stepIdx: number): number {
     if (padIdx >= 0 && padIdx < 8 && stepIdx >= 0 && stepIdx < 32) {
-      const active = this.cachedPattern[padIdx][stepIdx] ? 0 : 100;
-      this.cachedPattern[padIdx][stepIdx] = active;
+      const activeGrid = this.getActiveBankGrid();
+      const active = activeGrid[padIdx][stepIdx] ? 0 : 100;
+      activeGrid[padIdx][stepIdx] = active;
       this.workletNode?.port.postMessage({ type: 'SEQ_TOGGLE_STEP', padIdx, stepIdx });
       return active;
     }
     return 0;
   }
 
+  public seqSetStep(padIdx: number, stepIdx: number, active: boolean, saveUndo: boolean = true): number {
+    if (padIdx >= 0 && padIdx < 8 && stepIdx >= 0 && stepIdx < 32) {
+      const activeGrid = this.getActiveBankGrid();
+      const nextVal = active ? 100 : 0;
+      if ((activeGrid[padIdx][stepIdx] > 0) === active) {
+        return nextVal;
+      }
+      activeGrid[padIdx][stepIdx] = nextVal;
+      this.workletNode?.port.postMessage({ type: 'SEQ_SET_STEP', padIdx, stepIdx, active, saveUndo });
+      return nextVal;
+    }
+    return 0;
+  }
+
   public seqClearTrack(padIdx: number): void {
     if (padIdx >= 0 && padIdx < 8) {
-      this.cachedPattern[padIdx].fill(0);
+      this.getActiveBankGrid()[padIdx].fill(0);
       this.workletNode?.port.postMessage({ type: 'SEQ_CLEAR_TRACK', padIdx });
     }
   }
 
   public seqClearAll(): void {
+    const activeGrid = this.getActiveBankGrid();
     for (let i = 0; i < 8; i++) {
-      this.cachedPattern[i].fill(0);
+      activeGrid[i].fill(0);
     }
     this.workletNode?.port.postMessage({ type: 'SEQ_CLEAR_ALL' });
   }
@@ -431,7 +475,15 @@ export class WebAudioBridge {
   }
 
   public seqToggleBank(): string {
-    this.cachedBank = this.cachedBank === 'a' ? 'b' : 'a';
+    if (this.cachedBank === 'a') {
+      if (!this.bankBInitialized) {
+        this.cachedBankB = this.cachedBankA.map((row) => [...row]);
+        this.bankBInitialized = true;
+      }
+      this.cachedBank = 'b';
+    } else {
+      this.cachedBank = 'a';
+    }
     this.workletNode?.port.postMessage({ type: 'SEQ_TOGGLE_BANK' });
     return this.cachedBank;
   }
@@ -442,7 +494,7 @@ export class WebAudioBridge {
   }
 
   public seqGetPattern(): number[][] {
-    return this.cachedPattern.map((row) => [...row]);
+    return this.getActiveBankGrid().map((row) => [...row]);
   }
 
   public onStepChange(callback: (step: number) => void): () => void {

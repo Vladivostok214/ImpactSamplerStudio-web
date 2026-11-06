@@ -25,6 +25,7 @@ export class WebMidiManager {
   private onAccessChangeListeners: ((allowed: boolean) => void)[] = [];
   public shouldInterceptNote: ((note: number, velocity: number) => boolean) | null = null;
   public resolveNoteTarget: ((note: number, channel: number) => 'melodic' | 'drum') | null = null;
+  public resolvePadIndex: ((note: number, channel: number) => number | undefined) | null = null;
 
   private constructor() {}
 
@@ -103,10 +104,16 @@ export class WebMidiManager {
       const velocity = data2;
       const intercepted = this.shouldInterceptNote ? this.shouldInterceptNote(note, velocity) : false;
       const target = this.resolveNoteTarget ? this.resolveNoteTarget(note, channel) : (channel === 9 ? 'drum' : 'melodic');
+      const padIdx = this.resolvePadIndex ? this.resolvePadIndex(note, channel) : undefined;
       const isNoteOn = velocity > 0;
       if (isNoteOn) {
         if (!intercepted) {
-          audioBridge.noteOn(note, velocity, channel, target);
+          if (typeof padIdx === 'number' && padIdx >= 0 && padIdx < 8) {
+            const soundNote = audioBridge.getPadNotes()[padIdx] ?? note;
+            audioBridge.noteOn(soundNote, velocity, channel, 'drum', padIdx);
+          } else {
+            audioBridge.noteOn(note, velocity, channel, target);
+          }
         }
         this.notifyNoteEvent(note, velocity, true);
         this.notifyNormalizedMidiEvent({
@@ -118,7 +125,12 @@ export class WebMidiManager {
       } else {
         // Velocity 0 es tratado como Note Off en protocolo MIDI
         if (!intercepted) {
-          audioBridge.noteOff(note, channel, target);
+          if (typeof padIdx === 'number' && padIdx >= 0 && padIdx < 8) {
+            const soundNote = audioBridge.getPadNotes()[padIdx] ?? note;
+            audioBridge.noteOff(soundNote, channel, 'drum', padIdx);
+          } else {
+            audioBridge.noteOff(note, channel, target);
+          }
         }
         this.notifyNoteEvent(note, 0, false);
         this.notifyNormalizedMidiEvent({
@@ -134,8 +146,14 @@ export class WebMidiManager {
       const note = data1;
       const intercepted = this.shouldInterceptNote ? this.shouldInterceptNote(note, 0) : false;
       const target = this.resolveNoteTarget ? this.resolveNoteTarget(note, channel) : (channel === 9 ? 'drum' : 'melodic');
+      const padIdx = this.resolvePadIndex ? this.resolvePadIndex(note, channel) : undefined;
       if (!intercepted) {
-        audioBridge.noteOff(note, channel, target);
+        if (typeof padIdx === 'number' && padIdx >= 0 && padIdx < 8) {
+          const soundNote = audioBridge.getPadNotes()[padIdx] ?? note;
+          audioBridge.noteOff(soundNote, channel, 'drum', padIdx);
+        } else {
+          audioBridge.noteOff(note, channel, target);
+        }
       }
       this.notifyNoteEvent(note, 0, false);
       this.notifyNormalizedMidiEvent({
