@@ -7,6 +7,7 @@ import {
   Activity,
   Keyboard,
   Sliders,
+  PlugZap,
 } from "lucide-react";
 import { NormalizedMidiEvent } from "../types/midi";
 import { MidiDinIcon, MidiStreamPopover } from "./MidiStreamPopover";
@@ -28,6 +29,8 @@ interface HeaderProps {
   onToggleMidiLearn?: () => void;
   qwertyEnabled?: boolean;
   onToggleQwerty?: () => void;
+  isMidiSupported?: boolean;
+  onOpenMidiAssistant?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = React.memo(({
@@ -43,6 +46,8 @@ export const Header: React.FC<HeaderProps> = React.memo(({
   onToggleMidiLearn,
   qwertyEnabled = false,
   onToggleQwerty,
+  isMidiSupported = true,
+  onOpenMidiAssistant,
 }) => {
   const [isMidiPopoverOpen, setIsMidiPopoverOpen] = useState(false);
   const [liveMidiEvents, setLiveMidiEvents] = useState<NormalizedMidiEvent[]>([]);
@@ -138,16 +143,28 @@ export const Header: React.FC<HeaderProps> = React.memo(({
           {/* Monitores Inline Telemetría (MIDI & Web Audio) */}
           <div className="hidden lg:flex items-center space-x-2.5 text-[11px] font-mono pl-1">
             {/* Monitor MIDI Status */}
-            <div className="flex items-center space-x-1.5">
-              <Radio
-                size={12}
-                className={midiConnected ? "text-emerald-400 animate-pulse" : "text-amber-500"}
-              />
-              <span className="text-zinc-500 hidden xl:inline">MIDI:</span>
-              <span className={`truncate max-w-[140px] ${midiConnected ? "text-emerald-400 font-semibold" : "text-amber-400 font-medium"}`}>
-                {midiConnected ? activePortName.replace(/Impact\s*/i, "") || "Conectado" : "Desconectado"}
-              </span>
-            </div>
+            {!isMidiSupported ? (
+              <button
+                type="button"
+                onClick={onOpenMidiAssistant}
+                className="flex items-center space-x-1.5 px-2.5 py-1 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 hover:text-amber-200 border border-amber-500/30 hover:border-amber-400/50 shadow-[0_0_12px_rgba(245,158,11,0.15)] transition cursor-pointer group"
+                title="Tu navegador restringe USB MIDI (Safari). Clic para conectar tu teclado."
+              >
+                <PlugZap size={13} className="text-amber-400 group-hover:scale-110 transition-transform" />
+                <span className="font-semibold text-[11px] tracking-tight">Conectar Controlador MIDI</span>
+              </button>
+            ) : (
+              <div className="flex items-center space-x-1.5">
+                <Radio
+                  size={12}
+                  className={midiConnected ? "text-emerald-400 animate-pulse" : "text-amber-500"}
+                />
+                <span className="text-zinc-500 hidden xl:inline">MIDI:</span>
+                <span className={`truncate max-w-[140px] ${midiConnected ? "text-emerald-400 font-semibold" : "text-amber-400 font-medium"}`}>
+                  {midiConnected ? activePortName.replace(/Impact\s*/i, "") || "Conectado" : "Desconectado"}
+                </span>
+              </div>
+            )}
 
             <span className="text-zinc-700">•</span>
 

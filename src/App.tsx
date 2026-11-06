@@ -128,6 +128,8 @@ async function downloadSf2Buffer(
 export const App: React.FC = () => {
   const [isAudioStarted, setIsAudioStarted] = useState(false);
   const [midiDevices, setMidiDevices] = useState<string[]>([]);
+  const [isMidiSupported, setIsMidiSupported] = useState<boolean>(() => webMidi.isSupported());
+  const [assistantMidiHelpTrigger, setAssistantMidiHelpTrigger] = useState(0);
   const [, setIsLoadingSf2] = useState(false);
 
   // Estados de Hardware (Faders, Knobs, Ruedas)
@@ -395,6 +397,10 @@ export const App: React.FC = () => {
     // 1. Inicializar Web MIDI API
     webMidi.requestAccess();
 
+    const unsubAccess = webMidi.onAccessChange((allowed) => {
+      setIsMidiSupported(allowed);
+    });
+
     const unsubDevices = webMidi.onDeviceChange((devices) => {
       setMidiDevices(devices);
     });
@@ -625,6 +631,7 @@ export const App: React.FC = () => {
     return () => {
       webMidi.shouldInterceptNote = null;
       webMidi.resolveNoteTarget = null;
+      unsubAccess();
       unsubDevices();
       unsubNotes();
       unsubCc();
@@ -1678,6 +1685,8 @@ export const App: React.FC = () => {
         onOpenInstrumentSelect={() => setIsInstrumentModalOpen(true)}
         currentSoundfont={currentSoundfont}
         midiDevices={midiDevices}
+        isMidiSupported={isMidiSupported}
+        onOpenMidiAssistant={() => setAssistantMidiHelpTrigger((prev) => prev + 1)}
         isAudioStarted={isAudioStarted}
         audioSampleRate={audioBridge.getAudioContext()?.sampleRate || 48000}
         audioLatencyMs={(audioBridge.getAudioContext()?.baseLatency || 0.005) * 1000}
@@ -1817,6 +1826,7 @@ export const App: React.FC = () => {
         onOpenKeys={() => handleChangeWorkstationMode('keys')}
         onOpenInstruments={() => setIsInstrumentModalOpen(true)}
         onToggleMetronome={handleToggleMetronome}
+        openMidiHelpTrigger={assistantMidiHelpTrigger}
       />
 
       {/* Modal de Catálogo Fotográfico de Instrumentos (Bloque 5) */}

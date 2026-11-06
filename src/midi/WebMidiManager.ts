@@ -21,6 +21,8 @@ export class WebMidiManager {
   private onTransportListeners: TransportCallback[] = [];
   private onNormalizedMidiEventListeners: NormalizedMidiEventCallback[] = [];
   private recentEvents: NormalizedMidiEvent[] = [];
+  private isAccessAllowed: boolean | null = null;
+  private onAccessChangeListeners: ((allowed: boolean) => void)[] = [];
   public shouldInterceptNote: ((note: number, velocity: number) => boolean) | null = null;
   public resolveNoteTarget: ((note: number, channel: number) => 'melodic' | 'drum') | null = null;
 
@@ -33,14 +35,32 @@ export class WebMidiManager {
     return WebMidiManager.instance;
   }
 
+  public isSupported(): boolean {
+    return typeof navigator !== 'undefined' && typeof navigator.requestMIDIAccess === 'function';
+  }
+
+  public onAccessChange(callback: (allowed: boolean) => void): () => void {
+    this.onAccessChangeListeners.push(callback);
+    if (this.isAccessAllowed !== null) {
+      callback(this.isAccessAllowed);
+    }
+    return () => {
+      this.onAccessChangeListeners = this.onAccessChangeListeners.filter((cb) => cb !== callback);
+    };
+  }
+
   public async requestAccess(): Promise<boolean> {
-    if (!navigator.requestMIDIAccess) {
+    if (!this.isSupported()) {
       console.warn('Web MIDI API no soportada en este navegador');
+      this.isAccessAllowed = false;
+      this.onAccessChangeListeners.forEach((cb) => cb(false));
       return false;
     }
 
     try {
       this.midiAccess = await navigator.requestMIDIAccess({ sysex: false });
+      this.isAccessAllowed = true;
+      this.onAccessChangeListeners.forEach((cb) => cb(true));
       this.updateInputs();
 
       this.midiAccess.onstatechange = () => {
@@ -50,6 +70,8 @@ export class WebMidiManager {
       return true;
     } catch (err) {
       console.error('Error solicitando acceso Web MIDI:', err);
+      this.isAccessAllowed = false;
+      this.onAccessChangeListeners.forEach((cb) => cb(false));
       return false;
     }
   }

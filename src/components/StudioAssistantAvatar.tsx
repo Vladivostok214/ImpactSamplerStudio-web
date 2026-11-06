@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Search, X, ChevronRight, HelpCircle, Sparkles } from 'lucide-react';
+import { Search, X, ChevronRight, HelpCircle, Sparkles, Copy, Check, Keyboard, PlugZap } from 'lucide-react';
 import { FAQ_DATABASE } from '../data/studioFaqDatabase';
 import { searchFaqSemantic, ScoredFaqItem } from '../utils/nlpSearchEngine';
 
@@ -8,6 +8,7 @@ interface StudioAssistantAvatarProps {
   onOpenKeys?: () => void;
   onOpenInstruments?: () => void;
   onToggleMetronome?: () => void;
+  openMidiHelpTrigger?: number;
 }
 
 export const StudioAssistantAvatar: React.FC<StudioAssistantAvatarProps> = ({
@@ -15,6 +16,7 @@ export const StudioAssistantAvatar: React.FC<StudioAssistantAvatarProps> = ({
   onOpenKeys,
   onOpenInstruments,
   onToggleMetronome,
+  openMidiHelpTrigger,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [isBlinking, setIsBlinking] = useState(false);
@@ -22,6 +24,37 @@ export const StudioAssistantAvatar: React.FC<StudioAssistantAvatarProps> = ({
   const [showGreeting, setShowGreeting] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedFaqId, setExpandedFaqId] = useState<string | null>(null);
+  const [isMidiHelpActive, setIsMidiHelpActive] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
+
+  // Abrir Vostok directamente en el modo de ayuda de conexión MIDI si se activa desde el Header
+  useEffect(() => {
+    if (openMidiHelpTrigger && openMidiHelpTrigger > 0) {
+      setIsOpen(true);
+      setShowGreeting(false);
+      setIsMidiHelpActive(true);
+    }
+  }, [openMidiHelpTrigger]);
+
+  const handleCopyStudioLink = async () => {
+    try {
+      const url = window.location.href.split('#')[0];
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(url);
+      } else {
+        const input = document.createElement('input');
+        input.value = url;
+        document.body.appendChild(input);
+        input.select();
+        document.execCommand('copy');
+        document.body.removeChild(input);
+      }
+      setCopiedLink(true);
+      setTimeout(() => setCopiedLink(false), 3000);
+    } catch (e) {
+      console.warn('Error al copiar al portapapeles:', e);
+    }
+  };
 
   // Referencias directas a las pupilas SVG para evitar re-renders de React en mousemove (0% CPU UI)
   const containerRef = React.useRef<HTMLDivElement>(null);
@@ -283,20 +316,120 @@ export const StudioAssistantAvatar: React.FC<StudioAssistantAvatarProps> = ({
             {/* Cabecera Minimalista */}
             <div className="px-3.5 py-2.5 border-b border-white/[0.08] bg-white/[0.02] flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_8px_#10b981]" />
+                <span className={`w-2 h-2 rounded-full ${isMidiHelpActive ? "bg-amber-400 shadow-[0_0_8px_#f59e0b]" : "bg-emerald-400 shadow-[0_0_8px_#10b981]"}`} />
                 <span className="text-xs font-mono font-bold tracking-wider text-white">VOSTOK</span>
+                {isMidiHelpActive && (
+                  <span className="text-[9.5px] font-mono px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 font-semibold tracking-wider">
+                    GUÍA MIDI
+                  </span>
+                )}
               </div>
 
               <button
                 type="button"
-                onClick={() => setIsOpen(false)}
-                className="w-6 h-6 rounded-md flex items-center justify-center text-zinc-400 hover:text-white hover:bg-white/10 transition"
+                onClick={() => {
+                  setIsOpen(false);
+                  setIsMidiHelpActive(false);
+                }}
+                className="w-6 h-6 rounded-md flex items-center justify-center text-zinc-400 hover:text-white hover:bg-white/10 transition cursor-pointer"
                 title="Cerrar (Esc)"
               >
                 <X className="w-3.5 h-3.5" />
               </button>
             </div>
 
+            {isMidiHelpActive ? (
+              /* Vista Asistente de Conexión de Hardware MIDI */
+              <div className="p-4 flex-1 overflow-y-auto custom-scrollbar flex flex-col justify-between animate-in fade-in duration-150">
+                <div>
+                  {/* Cápsula de Estado con Ojos de Vostok */}
+                  <div className="flex items-center gap-3 p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 mb-3 shadow-[0_0_15px_rgba(245,158,11,0.12)]">
+                    <div className="w-11 h-11 rounded-xl bg-black border border-amber-500/40 flex items-center justify-center shrink-0 shadow-[0_0_12px_rgba(245,158,11,0.25)]">
+                      {renderEyes('sm')}
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-1.5">
+                        <PlugZap className="w-3.5 h-3.5 text-amber-400" />
+                        <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-amber-300">
+                          Acceso USB Restringido
+                        </span>
+                      </div>
+                      <h4 className="text-xs font-semibold text-white mt-0.5 tracking-tight">
+                        Conexión de Teclado o Controlador
+                      </h4>
+                    </div>
+                  </div>
+
+                  {/* Mensaje Asistente */}
+                  <div className="text-[11.5px] text-zinc-300 space-y-2 font-sans leading-relaxed px-0.5">
+                    <p>
+                      ¡Hola! Detecto que tu navegador actual (<span className="text-white font-medium">Safari</span> o modo restringido) no permite la conexión USB directa a instrumentos por políticas de seguridad del sistema.
+                    </p>
+                    <p>
+                      Para conectar y tocar con tu teclado físico con latencia ultra-baja, te sugiero abrir esta sesión en <strong className="text-emerald-400 font-semibold">Google Chrome</strong>, <strong className="text-emerald-400 font-semibold">Brave</strong> o <strong className="text-emerald-400 font-semibold">Edge</strong>.
+                    </p>
+                  </div>
+
+                  {/* Botón 1-Clic Copiar Enlace */}
+                  <div className="mt-3.5">
+                    <button
+                      type="button"
+                      onClick={handleCopyStudioLink}
+                      className={`w-full py-2.5 px-3 rounded-xl font-mono text-xs font-bold flex items-center justify-center gap-2 transition-all shadow-md cursor-pointer ${
+                        copiedLink
+                          ? 'bg-emerald-500 text-black border border-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.45)] scale-[0.98]'
+                          : 'bg-white/[0.08] hover:bg-white/[0.15] text-white border border-white/15 hover:border-emerald-500/50'
+                      }`}
+                    >
+                      {copiedLink ? (
+                        <>
+                          <Check className="w-4 h-4 text-black" />
+                          <span>¡Enlace copiado! Pégalo en Chrome o Brave</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-4 h-4 text-emerald-400" />
+                          <span>Copiar enlace del estudio</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+
+                  {/* Caja Tip: Teclado QWERTY */}
+                  <div className="mt-3 p-2.5 rounded-xl bg-black/60 border border-white/10 font-mono text-[10.5px] text-zinc-400 flex items-start gap-2.5">
+                    <Keyboard className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                    <div>
+                      <span className="text-zinc-200 font-semibold">¿Quieres tocar aquí mismo?</span>
+                      <p className="text-[10px] text-zinc-400 mt-0.5 leading-snug">
+                        ¡Todo funciona! Usa las teclas de tu laptop: <span className="text-emerald-300 font-bold">A-L</span> para notas, <span className="text-emerald-300 font-bold">1-8</span> para pads de batería y <span className="text-emerald-300 font-bold">Z/X</span> para octavas.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Pie de navegación */}
+                <div className="mt-4 pt-2.5 border-t border-white/10 flex items-center justify-between text-[11px] font-mono">
+                  <button
+                    type="button"
+                    onClick={() => setIsMidiHelpActive(false)}
+                    className="text-zinc-400 hover:text-white transition flex items-center gap-1 cursor-pointer"
+                  >
+                    <span>← Ver preguntas frecuentes</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsOpen(false);
+                      setIsMidiHelpActive(false);
+                    }}
+                    className="text-emerald-400 hover:underline font-semibold cursor-pointer"
+                  >
+                    Entendido
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <>
             {/* Buscador Integrado */}
             <div className="p-3 border-b border-white/[0.06] bg-black/40">
               <div className="relative">
@@ -460,6 +593,8 @@ export const StudioAssistantAvatar: React.FC<StudioAssistantAvatarProps> = ({
                 </div>
               )}
             </div>
+          </>
+        )}
           </div>
         </>
       )}
